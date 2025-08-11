@@ -3,8 +3,6 @@ use std::path::Path;
 
 use bindgen::builder;
 
-// const OTF2_DIR: &str = "external/otf2/3.0/otf2-3.0";
-
 pub fn generate(
     install_dir: &Path,
     out_path: &std::path::Path,

@@ -2,7 +2,7 @@ use crate::error::Status;
 use crate::internal::*;
 use std::ffi::CString;
 
-use crate::definition::{DefinitionVisitor, DefinitionVisitorMultiplexer};
+use crate::definition::{DefinitionVisitor, DefinitionVisitorMultiplexer, PrintingDefinitionVisitor};
 
 type ReaderHandle = OwnedExternHandle<OTF2_Reader_struct, OTF2_ErrorCode>;
 
@@ -87,6 +87,7 @@ impl Reader {
         dbg!(&global_callbacks);
         eprintln!("<set callbacks>");
         let mut def_visitor = DefinitionVisitorMultiplexer::new();
+        def_visitor.add_visitor(Box::new(PrintingDefinitionVisitor::new()));
         def_visitor.set_global_def_reader_callbacks(&mut global_callbacks)?;
         let global_def_reader = unsafe { OTF2_Reader_GetGlobalDefReader(handle.as_raw_mut()) };
         assert!(
