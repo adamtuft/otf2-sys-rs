@@ -1,10 +1,10 @@
-use std::ops::{Try, FromResidual};
 use std::ffi;
+use std::ops::{FromResidual, Try};
 
 use crate::c;
 
 /// Wrapper around the low-level OTF2 error code with name and description.
-/// 
+///
 /// Note: by implementing `Try` this excludes `OTF2_SUCCESS` which means this only represents
 /// error states.
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
@@ -17,12 +17,18 @@ impl Status {
 
     pub fn name(&self) -> &str {
         // SAFETY: trust the otf2 library to give valid, null-terminated, const utf8 strings
-        unsafe { str::from_utf8_unchecked(ffi::CStr::from_ptr(c::OTF2_Error_GetName(self.0)).to_bytes()) }
+        unsafe {
+            str::from_utf8_unchecked(ffi::CStr::from_ptr(c::OTF2_Error_GetName(self.0)).to_bytes())
+        }
     }
 
     pub fn description(&self) -> &str {
         // SAFETY: trust the otf2 library to give valid, null-terminated, const utf8 strings
-        unsafe { str::from_utf8_unchecked(ffi::CStr::from_ptr(c::OTF2_Error_GetDescription(self.0)).to_bytes()) }
+        unsafe {
+            str::from_utf8_unchecked(
+                ffi::CStr::from_ptr(c::OTF2_Error_GetDescription(self.0)).to_bytes(),
+            )
+        }
     }
 }
 
@@ -152,12 +158,8 @@ mod test {
 
     #[test]
     fn can_use_question_operator_on_status() {
-        let fails = || -> Status {
-            Status(c::OTF2_ErrorCode::OTF2_ERROR_EACCES)
-        };
-        let succeeds = || -> Status {
-            Status(c::OTF2_ErrorCode::OTF2_SUCCESS)
-        };
+        let fails = || -> Status { Status(c::OTF2_ErrorCode::OTF2_ERROR_EACCES) };
+        let succeeds = || -> Status { Status(c::OTF2_ErrorCode::OTF2_SUCCESS) };
         let fallible = |f: fn() -> Status| -> Result<(), Status> {
             f()?;
             Ok(())
@@ -172,12 +174,8 @@ mod test {
 
     #[test]
     fn can_use_question_operator_on_code() {
-        let fails = || -> c::OTF2_ErrorCode {
-            c::OTF2_ErrorCode::OTF2_ERROR_EACCES
-        };
-        let succeeds = || -> c::OTF2_ErrorCode {
-            c::OTF2_ErrorCode::OTF2_SUCCESS
-        };
+        let fails = || -> c::OTF2_ErrorCode { c::OTF2_ErrorCode::OTF2_ERROR_EACCES };
+        let succeeds = || -> c::OTF2_ErrorCode { c::OTF2_ErrorCode::OTF2_SUCCESS };
         let fallible = |f: fn() -> c::OTF2_ErrorCode| -> Result<(), Status> {
             f()?;
             Ok(())
@@ -188,7 +186,10 @@ mod test {
         dbg!(&expect_success);
         assert!(expect_error.is_err());
         assert!(expect_success.is_ok());
-        assert_eq!(expect_error, Err(Status(c::OTF2_ErrorCode::OTF2_ERROR_EACCES)));
+        assert_eq!(
+            expect_error,
+            Err(Status(c::OTF2_ErrorCode::OTF2_ERROR_EACCES))
+        );
         assert_eq!(expect_success, Ok(()));
     }
 }

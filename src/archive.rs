@@ -1,5 +1,8 @@
 use crate::internal::*;
-use crate::{file, error::{Status, StatusResult}};
+use crate::{
+    error::{Status, StatusResult},
+    file,
+};
 use std::ffi::CString;
 
 #[derive(thiserror::Error, Debug, Clone, PartialEq, Eq)]
@@ -7,15 +10,9 @@ pub enum ArchiveBuilderError {
     #[error("{0} is a required argument to OTF2_Archive_Open")]
     MissingField(&'static str),
     #[error("null byte at position {pos} in the {field} argument")]
-    NullByte{
-        field: &'static str,
-        pos: usize,
-    },
+    NullByte { field: &'static str, pos: usize },
     #[error("OTF2_Archive_Open returned null")]
-    OpenReturnedNull {
-        name: String,
-        path: String,
-    }
+    OpenReturnedNull { name: String, path: String },
 }
 
 impl ArchiveBuilderError {
@@ -31,14 +28,13 @@ impl ArchiveBuilderError {
 #[derive(thiserror::Error, Debug, Clone, PartialEq, Eq)]
 pub enum ArchiveError {
     #[error("OTF2_Archive_Close returned error: {0}")]
-    Close(Status)
+    Close(Status),
 }
 
 type ArchiveHandle = OwnedExternHandle<OTF2_Archive_struct, OTF2_ErrorCode>;
 
 mod private {
     use super::*;
-
 
     #[derive(Builder, Debug)]
     #[builder(derive(Debug))]
@@ -67,12 +63,10 @@ mod private {
         }
 
         pub fn open(self, path: String, name: String) -> Result<Archive, ArchiveBuilderError> {
-            let path: CString = CString::new(path).map_err(|e| {
-                ArchiveBuilderError::null_byte("path", e.nul_position())
-            })?;
-            let name: CString = CString::new(name).map_err(|e| {
-                ArchiveBuilderError::null_byte("name", e.nul_position())
-            })?;
+            let path: CString = CString::new(path)
+                .map_err(|e| ArchiveBuilderError::null_byte("path", e.nul_position()))?;
+            let name: CString = CString::new(name)
+                .map_err(|e| ArchiveBuilderError::null_byte("name", e.nul_position()))?;
             let handle = unsafe {
                 OTF2_Archive_Open(
                     path.as_ptr(),
@@ -85,13 +79,14 @@ mod private {
                     self.substrate
                         .unwrap_or(file::Substrate::OTF2_SUBSTRATE_POSIX) as u8,
                     self.compression
-                        .unwrap_or(file::Compression::OTF2_COMPRESSION_NONE) as u8,
+                        .unwrap_or(file::Compression::OTF2_COMPRESSION_NONE)
+                        as u8,
                 )
             };
             if handle.is_null() {
                 Err(ArchiveBuilderError::open_returned_null(
                     name.to_string_lossy().to_string(),
-                    path.to_string_lossy().to_string()
+                    path.to_string_lossy().to_string(),
                 ))
             } else {
                 Ok(Archive {
@@ -104,7 +99,7 @@ mod private {
     }
 }
 
-pub use private::{ArchiveBuilder};
+pub use private::ArchiveBuilder;
 
 #[derive(Debug)]
 pub struct Archive {
@@ -128,8 +123,9 @@ mod test {
         builder.read();
         dbg!(&builder);
         let archive = builder.open(
-            "/home/adam/Dropbox/Durham-RA/experiments/bots-strassen/trace/serial_512.15132".to_string(),
-            "serial_512.15132".to_string()
+            "/home/adam/Dropbox/Durham-RA/experiments/bots-strassen/trace/serial_512.15132"
+                .to_string(),
+            "serial_512.15132".to_string(),
         );
         dbg!(&archive);
         assert!(archive.is_ok());

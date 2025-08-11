@@ -2,8 +2,8 @@
 #![allow(unused_imports)]
 #![allow(dead_code)]
 
-mod c;
 mod archive;
+mod c;
 mod definition;
 mod error;
 mod handle;
