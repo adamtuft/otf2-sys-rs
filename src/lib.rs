@@ -7,6 +7,7 @@ mod c;
 mod definition;
 mod error;
 mod handle;
+mod print_defs;
 mod reader;
 
 pub mod file {

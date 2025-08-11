@@ -2,7 +2,8 @@ use crate::error::Status;
 use crate::internal::*;
 use std::ffi::CString;
 
-use crate::definition::{DefinitionVisitor, DefinitionVisitorMultiplexer, PrintingDefinitionVisitor};
+use crate::definition::{DefinitionVisitor, DefinitionVisitorMultiplexer};
+use crate::print_defs::PrintingDefinitionVisitor;
 
 type ReaderHandle = OwnedExternHandle<OTF2_Reader_struct, OTF2_ErrorCode>;
 
@@ -79,13 +80,11 @@ impl Reader {
     }
 
     fn read_all_global_definitions(handle: &mut ReaderHandle) -> Result<(), Status> {
-        eprintln!("<read definitions>");
         let mut global_callbacks = OwnedExternHandle::new(
             unsafe { OTF2_GlobalDefReaderCallbacks_New() },
             OTF2_GlobalDefReaderCallbacks_Delete,
         );
         dbg!(&global_callbacks);
-        eprintln!("<set callbacks>");
         let mut def_visitor = DefinitionVisitorMultiplexer::new();
         def_visitor.add_visitor(Box::new(PrintingDefinitionVisitor::new()));
         def_visitor.set_global_def_reader_callbacks(&mut global_callbacks)?;
@@ -94,7 +93,6 @@ impl Reader {
             !global_def_reader.is_null(),
             "OTF2_Reader_GetGlobalDefReader returned null"
         );
-        eprintln!("<register callbacks>");
         unsafe {
             OTF2_Reader_RegisterGlobalDefCallbacks(
                 handle.as_raw_mut(),
@@ -104,7 +102,6 @@ impl Reader {
             )
         }?;
         let mut definitions_read: u64 = 0;
-        eprintln!("<read definitions>");
         unsafe {
             OTF2_Reader_ReadAllGlobalDefinitions(
                 handle.as_raw_mut(),
@@ -112,7 +109,6 @@ impl Reader {
                 &mut definitions_read,
             )
         }?;
-        eprintln!("<close global def reader>");
         unsafe { OTF2_Reader_CloseGlobalDefReader(handle.as_raw_mut(), global_def_reader) }?;
         eprintln!("<{definitions_read} definitions were read>");
         Ok(())
