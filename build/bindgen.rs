@@ -1,7 +1,7 @@
 //! Generate bindings to OTF2
 use std::path::Path;
 
-use bindgen::builder;
+use bindgen::{EnumVariation, builder};
 
 pub fn generate(
     install_dir: &Path,
@@ -13,12 +13,15 @@ pub fn generate(
 
     let bindings = builder()
         .header(format!("{install_dir}/include/otf2/otf2.h"))
-        .rustified_enum("OTF2_ErrorCode")
-        .rustified_enum("OTF2_CallbackCode_enum")
-        .rustified_enum("OTF2_FileMode_enum")
-        .rustified_enum("OTF2_FileSubstrate_enum")
-        .rustified_enum("OTF2_Compression_enum")
+        .default_enum_style(EnumVariation::Rust {
+            non_exhaustive: false,
+        })
         .must_use_type("OTF2_ErrorCode")
+        .new_type_alias("OTF2_.*.Ref")
+        .new_type_alias("OTF2_Type")
+        .new_type_alias("OTF2_AttributeValue")
+        .derive_eq(true)
+        .no_partialeq("OTF2_.*.Callback[s]{0,1}")
         .generate_cstr(true)
         .clang_args([format!("-I{install_dir}/include")])
         .generate()?;

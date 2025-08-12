@@ -123,7 +123,7 @@ impl Try for c::OTF2_ErrorCode {
     type Output = ();
     type Residual = Status;
 
-    fn from_output(output: Self::Output) -> Self {
+    fn from_output(_: Self::Output) -> Self {
         c::OTF2_ErrorCode::OTF2_SUCCESS
     }
 

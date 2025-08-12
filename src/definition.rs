@@ -1,3 +1,5 @@
+#![allow(unused_variables)]
+
 use crate::error::Status;
 use crate::internal::*;
 use std::ffi::CStr;
@@ -1208,7 +1210,11 @@ extern "C" fn read_io_handle_def(
     parent: OTF2_IoHandleRef,
 ) -> OTF2_CallbackCode_enum {
     let this: &mut DefinitionVisitorMultiplexer = unsafe { &mut *(user_data as *mut _) };
-    let comm_opt = if comm == OTF2_UNDEFINED_COMM { None } else { Some(comm) };
+    let comm_opt = if comm == OTF2_UNDEFINED_COMM {
+        None
+    } else {
+        Some(comm)
+    };
     let parent_opt = if parent == OTF2_UNDEFINED_IO_HANDLE {
         None
     } else {

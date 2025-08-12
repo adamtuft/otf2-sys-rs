@@ -23,39 +23,6 @@ pub struct Reader {
     anchor_file: CString,
 }
 
-mod definition_callbacks {
-    use super::*;
-
-    pub extern "C" fn read_string_callback(
-        user_data: *mut ::std::os::raw::c_void,
-        defn: OTF2_StringRef,
-        value: *const ::std::os::raw::c_char,
-    ) -> OTF2_CallbackCode {
-        let value = unsafe { std::ffi::CStr::from_ptr(value) };
-        eprintln!(
-            "read_string_callback: defn: {}, value: {}",
-            defn,
-            value.to_string_lossy()
-        );
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub extern "C" fn read_location_callback(
-        user_data: *mut ::std::os::raw::c_void,
-        defn: OTF2_LocationRef,
-        name: OTF2_StringRef,
-        location_type: OTF2_LocationType,
-        num_events: u64,
-        location_group: OTF2_LocationGroupRef,
-    ) -> OTF2_CallbackCode {
-        eprintln!(
-            "read_location_callback: defn: {}, name: {}, location_type: {}, num_events: {}, location_group: {}",
-            defn, name, location_type, num_events, location_group
-        );
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-}
-
 impl Reader {
     pub fn open(anchor_file: String) -> Result<Self, ReaderError> {
         let anchor_file: CString = CString::new(anchor_file)

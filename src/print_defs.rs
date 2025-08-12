@@ -1,3 +1,5 @@
+#![allow(unused_variables)]
+
 use crate::error::Status;
 use crate::internal::*;
 use std::ffi::CStr;
@@ -73,8 +75,11 @@ impl DefinitionVisitor for PrintingDefinitionVisitor {
         value: OTF2_AttributeValue,
     ) -> OTF2_CallbackCode {
         eprintln!(
-            "visit_paradigm_property: paradigm: {}, property: {}, type: {}, value: <attr_value>",
-            paradigm, property, type_
+            "visit_paradigm_property: paradigm: {}, property: {}, type: {}, value: {}",
+            paradigm,
+            property,
+            type_,
+            value.display(type_)
         );
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
@@ -92,7 +97,12 @@ impl DefinitionVisitor for PrintingDefinitionVisitor {
     ) -> OTF2_CallbackCode {
         eprintln!(
             "visit_io_paradigm: defn: {}, identification: {}, name: {}, io_paradigm_class: {}, io_paradigm_flags: {}, properties: {} items",
-            defn, identification, name, io_paradigm_class, io_paradigm_flags, properties.len()
+            defn,
+            identification,
+            name,
+            io_paradigm_class,
+            io_paradigm_flags,
+            properties.len()
         );
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
@@ -133,8 +143,11 @@ impl DefinitionVisitor for PrintingDefinitionVisitor {
         value: OTF2_AttributeValue,
     ) -> OTF2_CallbackCode {
         eprintln!(
-            "visit_system_tree_node_property: system_tree_node: {}, name: {}, type: {}, value: <attr_value>",
-            system_tree_node, name, type_
+            "visit_system_tree_node_property: system_tree_node: {}, name: {}, type: {}, value: {}",
+            system_tree_node,
+            name,
+            type_,
+            value.display(type_)
         );
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
@@ -174,8 +187,11 @@ impl DefinitionVisitor for PrintingDefinitionVisitor {
         value: OTF2_AttributeValue,
     ) -> OTF2_CallbackCode {
         eprintln!(
-            "visit_location_group_property: location_group: {}, name: {}, type: {}, value: <attr_value>",
-            location_group, name, type_
+            "visit_location_group_property: location_group: {}, name: {}, type: {}, value: {}",
+            location_group,
+            name,
+            type_,
+            value.display(type_)
         );
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
@@ -188,8 +204,11 @@ impl DefinitionVisitor for PrintingDefinitionVisitor {
         value: OTF2_AttributeValue,
     ) -> OTF2_CallbackCode {
         eprintln!(
-            "visit_location_property: location: {}, name: {}, type: {}, value: <attr_value>",
-            location, name, type_
+            "visit_location_property: location: {}, name: {}, type: {}, value: {}",
+            location,
+            name,
+            type_,
+            value.display(type_)
         );
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
@@ -209,7 +228,16 @@ impl DefinitionVisitor for PrintingDefinitionVisitor {
     ) -> OTF2_CallbackCode {
         eprintln!(
             "visit_region: defn: {}, name: {}, canonical_name: {}, description: {}, region_role: {}, paradigm: {}, region_flags: {}, source_file: {}, begin_line_number: {}, end_line_number: {}",
-            defn, name, canonical_name, description, region_role, paradigm, region_flags, source_file, begin_line_number, end_line_number
+            defn,
+            name,
+            canonical_name,
+            description,
+            region_role,
+            paradigm,
+            region_flags,
+            source_file,
+            begin_line_number,
+            end_line_number
         );
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
@@ -250,8 +278,11 @@ impl DefinitionVisitor for PrintingDefinitionVisitor {
         value: OTF2_AttributeValue,
     ) -> OTF2_CallbackCode {
         eprintln!(
-            "visit_callpath_parameter: callpath: {}, parameter: {}, type: {}, value: <attr_value>",
-            callpath, parameter, type_
+            "visit_callpath_parameter: callpath: {}, parameter: {}, type: {}, value: {}",
+            callpath,
+            parameter,
+            type_,
+            value.display(type_)
         );
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
@@ -291,8 +322,11 @@ impl DefinitionVisitor for PrintingDefinitionVisitor {
         value: OTF2_AttributeValue,
     ) -> OTF2_CallbackCode {
         eprintln!(
-            "visit_calling_context_property: calling_context: {}, name: {}, type: {}, value: <attr_value>",
-            calling_context, name, type_
+            "visit_calling_context_property: calling_context: {}, name: {}, type: {}, value: {}",
+            calling_context,
+            name,
+            type_,
+            value.display(type_)
         );
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
@@ -308,7 +342,12 @@ impl DefinitionVisitor for PrintingDefinitionVisitor {
     ) -> OTF2_CallbackCode {
         eprintln!(
             "visit_group: defn: {}, name: {}, group_type: {}, paradigm: {}, group_flags: {}, members: {} items",
-            defn, name, group_type, paradigm, group_flags, members.len()
+            defn,
+            name,
+            group_type,
+            paradigm,
+            group_flags,
+            members.len()
         );
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
@@ -341,7 +380,10 @@ impl DefinitionVisitor for PrintingDefinitionVisitor {
     ) -> OTF2_CallbackCode {
         eprintln!(
             "visit_metric_class: defn: {}, metric_members: {} items, metric_occurrence: {}, recorder_kind: {}",
-            defn, metric_members.len(), metric_occurrence, recorder_kind
+            defn,
+            metric_members.len(),
+            metric_occurrence,
+            recorder_kind
         );
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
@@ -452,7 +494,10 @@ impl DefinitionVisitor for PrintingDefinitionVisitor {
     ) -> OTF2_CallbackCode {
         eprintln!(
             "visit_cart_topology: defn: {}, name: {}, communicator: {}, dimensions: {} items",
-            defn, name, communicator, dimensions.len()
+            defn,
+            name,
+            communicator,
+            dimensions.len()
         );
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
@@ -465,7 +510,9 @@ impl DefinitionVisitor for PrintingDefinitionVisitor {
     ) -> OTF2_CallbackCode {
         eprintln!(
             "visit_cart_coordinate: topology: {}, rank: {}, coordinates: {} items",
-            topology, rank, coordinates.len()
+            topology,
+            rank,
+            coordinates.len()
         );
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
@@ -494,8 +541,11 @@ impl DefinitionVisitor for PrintingDefinitionVisitor {
         value: OTF2_AttributeValue,
     ) -> OTF2_CallbackCode {
         eprintln!(
-            "visit_io_file_property: io_file: {}, name: {}, type: {}, value: <attr_value>",
-            io_file, name, type_
+            "visit_io_file_property: io_file: {}, name: {}, type: {}, value: {}",
+            io_file,
+            name,
+            type_,
+            value.display(type_)
         );
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
