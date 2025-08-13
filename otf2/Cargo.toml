@@ -1,0 +1,7 @@
+[package]
+name = "otf2"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+otf2-sys = { path = "../otf2-sys" }
