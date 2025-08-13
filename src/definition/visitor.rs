@@ -4,8 +4,8 @@ use crate::error::Status;
 use crate::internal::*;
 use std::ffi::CStr;
 
-pub trait DefinitionVisitor {
-    fn visit_string(&mut self, defn: OTF2_StringRef, value: &CStr) -> OTF2_CallbackCode;
+pub trait DefinitionVisitor: std::fmt::Debug {
+    fn visit_string(&mut self, defn: OTF2_StringRef, value: &CStr) -> OTF2_CallbackCode { OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS }
     fn visit_location(
         &mut self,
         defn: OTF2_LocationRef,
@@ -13,7 +13,7 @@ pub trait DefinitionVisitor {
         location_type: OTF2_LocationType,
         num_events: u64,
         location_group: OTF2_LocationGroupRef,
-    ) -> OTF2_CallbackCode;
+    ) -> OTF2_CallbackCode { OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS }
 
     // Clock and paradigm definitions
     fn visit_clock_properties(
@@ -22,20 +22,20 @@ pub trait DefinitionVisitor {
         global_offset: u64,
         trace_length: u64,
         realtime_timestamp: u64,
-    ) -> OTF2_CallbackCode;
+    ) -> OTF2_CallbackCode { OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS }
     fn visit_paradigm(
         &mut self,
         paradigm: OTF2_Paradigm,
         name: OTF2_StringRef,
         paradigm_class: OTF2_ParadigmClass,
-    ) -> OTF2_CallbackCode;
+    ) -> OTF2_CallbackCode { OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS }
     fn visit_paradigm_property(
         &mut self,
         paradigm: OTF2_Paradigm,
         property: OTF2_ParadigmProperty,
         type_: OTF2_Type,
         value: OTF2_AttributeValue,
-    ) -> OTF2_CallbackCode;
+    ) -> OTF2_CallbackCode { OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS }
     fn visit_io_paradigm(
         &mut self,
         defn: OTF2_IoParadigmRef,
@@ -46,7 +46,7 @@ pub trait DefinitionVisitor {
         properties: &[OTF2_IoParadigmProperty],
         types: &[OTF2_Type],
         values: &[OTF2_AttributeValue],
-    ) -> OTF2_CallbackCode;
+    ) -> OTF2_CallbackCode { OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS }
 
     // Definition attributes
     fn visit_attribute(
@@ -55,7 +55,7 @@ pub trait DefinitionVisitor {
         name: OTF2_StringRef,
         description: OTF2_StringRef,
         type_: OTF2_Type,
-    ) -> OTF2_CallbackCode;
+    ) -> OTF2_CallbackCode { OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS }
 
     // System tree definitions
     fn visit_system_tree_node(
@@ -64,19 +64,19 @@ pub trait DefinitionVisitor {
         name: OTF2_StringRef,
         class_name: OTF2_StringRef,
         parent: Option<OTF2_SystemTreeNodeRef>,
-    ) -> OTF2_CallbackCode;
+    ) -> OTF2_CallbackCode { OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS }
     fn visit_system_tree_node_property(
         &mut self,
         system_tree_node: OTF2_SystemTreeNodeRef,
         name: OTF2_StringRef,
         type_: OTF2_Type,
         value: OTF2_AttributeValue,
-    ) -> OTF2_CallbackCode;
+    ) -> OTF2_CallbackCode { OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS }
     fn visit_system_tree_node_domain(
         &mut self,
         system_tree_node: OTF2_SystemTreeNodeRef,
         system_tree_domain: OTF2_SystemTreeDomain,
-    ) -> OTF2_CallbackCode;
+    ) -> OTF2_CallbackCode { OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS }
 
     // Location definitions
     fn visit_location_group(
@@ -86,21 +86,21 @@ pub trait DefinitionVisitor {
         location_group_type: OTF2_LocationGroupType,
         system_tree_parent: OTF2_SystemTreeNodeRef,
         creating_location_group: Option<OTF2_LocationGroupRef>,
-    ) -> OTF2_CallbackCode;
+    ) -> OTF2_CallbackCode { OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS }
     fn visit_location_group_property(
         &mut self,
         location_group: OTF2_LocationGroupRef,
         name: OTF2_StringRef,
         type_: OTF2_Type,
         value: OTF2_AttributeValue,
-    ) -> OTF2_CallbackCode;
+    ) -> OTF2_CallbackCode { OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS }
     fn visit_location_property(
         &mut self,
         location: OTF2_LocationRef,
         name: OTF2_StringRef,
         type_: OTF2_Type,
         value: OTF2_AttributeValue,
-    ) -> OTF2_CallbackCode;
+    ) -> OTF2_CallbackCode { OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS }
 
     // Region and callpath definitions
     fn visit_region(
@@ -115,7 +115,7 @@ pub trait DefinitionVisitor {
         source_file: OTF2_StringRef,
         begin_line_number: u32,
         end_line_number: u32,
-    ) -> OTF2_CallbackCode;
+    ) -> OTF2_CallbackCode { OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS }
     fn visit_callsite(
         &mut self,
         defn: OTF2_CallsiteRef,
@@ -123,40 +123,40 @@ pub trait DefinitionVisitor {
         line_number: u32,
         entered_region: OTF2_RegionRef,
         left_region: OTF2_RegionRef,
-    ) -> OTF2_CallbackCode;
+    ) -> OTF2_CallbackCode { OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS }
     fn visit_callpath(
         &mut self,
         defn: OTF2_CallpathRef,
         parent: Option<OTF2_CallpathRef>,
         region: OTF2_RegionRef,
-    ) -> OTF2_CallbackCode;
+    ) -> OTF2_CallbackCode { OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS }
     fn visit_callpath_parameter(
         &mut self,
         callpath: OTF2_CallpathRef,
         parameter: OTF2_ParameterRef,
         type_: OTF2_Type,
         value: OTF2_AttributeValue,
-    ) -> OTF2_CallbackCode;
+    ) -> OTF2_CallbackCode { OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS }
     fn visit_source_code_location(
         &mut self,
         defn: OTF2_SourceCodeLocationRef,
         file: OTF2_StringRef,
         line_number: u32,
-    ) -> OTF2_CallbackCode;
+    ) -> OTF2_CallbackCode { OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS }
     fn visit_calling_context(
         &mut self,
         defn: OTF2_CallingContextRef,
         region: OTF2_RegionRef,
         source_code_location: OTF2_SourceCodeLocationRef,
         parent: Option<OTF2_CallingContextRef>,
-    ) -> OTF2_CallbackCode;
+    ) -> OTF2_CallbackCode { OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS }
     fn visit_calling_context_property(
         &mut self,
         calling_context: OTF2_CallingContextRef,
         name: OTF2_StringRef,
         type_: OTF2_Type,
         value: OTF2_AttributeValue,
-    ) -> OTF2_CallbackCode;
+    ) -> OTF2_CallbackCode { OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS }
 
     // Group definitions
     fn visit_group(
@@ -167,7 +167,7 @@ pub trait DefinitionVisitor {
         paradigm: OTF2_Paradigm,
         group_flags: OTF2_GroupFlag,
         members: &[u64],
-    ) -> OTF2_CallbackCode;
+    ) -> OTF2_CallbackCode { OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS }
 
     // Metric definitions
     fn visit_metric_member(
@@ -181,14 +181,14 @@ pub trait DefinitionVisitor {
         base: OTF2_Base,
         exponent: i64,
         unit: OTF2_StringRef,
-    ) -> OTF2_CallbackCode;
+    ) -> OTF2_CallbackCode { OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS }
     fn visit_metric_class(
         &mut self,
         defn: OTF2_MetricRef,
         metric_members: &[OTF2_MetricMemberRef],
         metric_occurrence: OTF2_MetricOccurrence,
         recorder_kind: OTF2_RecorderKind,
-    ) -> OTF2_CallbackCode;
+    ) -> OTF2_CallbackCode { OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS }
     fn visit_metric_instance(
         &mut self,
         defn: OTF2_MetricRef,
@@ -196,12 +196,12 @@ pub trait DefinitionVisitor {
         recorder: OTF2_LocationRef,
         metric_scope: OTF2_MetricScope,
         scope: u64,
-    ) -> OTF2_CallbackCode;
+    ) -> OTF2_CallbackCode { OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS }
     fn visit_metric_class_recorder(
         &mut self,
         metric_class: OTF2_MetricRef,
         recorder: OTF2_LocationRef,
-    ) -> OTF2_CallbackCode;
+    ) -> OTF2_CallbackCode { OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS }
 
     // Communication definitions
     fn visit_comm(
@@ -210,7 +210,7 @@ pub trait DefinitionVisitor {
         name: OTF2_StringRef,
         group: OTF2_GroupRef,
         parent: Option<OTF2_CommRef>,
-    ) -> OTF2_CallbackCode;
+    ) -> OTF2_CallbackCode { OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS }
     fn visit_inter_comm(
         &mut self,
         defn: OTF2_CommRef,
@@ -219,19 +219,19 @@ pub trait DefinitionVisitor {
         group_b: OTF2_GroupRef,
         common_communicator: Option<OTF2_CommRef>,
         flags: OTF2_CommFlag,
-    ) -> OTF2_CallbackCode;
+    ) -> OTF2_CallbackCode { OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS }
     fn visit_parameter(
         &mut self,
         defn: OTF2_ParameterRef,
         name: OTF2_StringRef,
         parameter_type: OTF2_ParameterType,
-    ) -> OTF2_CallbackCode;
+    ) -> OTF2_CallbackCode { OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS }
     fn visit_rma_win(
         &mut self,
         defn: OTF2_RmaWinRef,
         name: OTF2_StringRef,
         comm: OTF2_CommRef,
-    ) -> OTF2_CallbackCode;
+    ) -> OTF2_CallbackCode { OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS }
 
     // Cartesian topology definitions
     fn visit_cart_dimension(
@@ -240,20 +240,20 @@ pub trait DefinitionVisitor {
         name: OTF2_StringRef,
         size: u32,
         periodic: OTF2_CartPeriodicity,
-    ) -> OTF2_CallbackCode;
+    ) -> OTF2_CallbackCode { OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS }
     fn visit_cart_topology(
         &mut self,
         defn: OTF2_CartTopologyRef,
         name: OTF2_StringRef,
         communicator: OTF2_CommRef,
         dimensions: &[OTF2_CartDimensionRef],
-    ) -> OTF2_CallbackCode;
+    ) -> OTF2_CallbackCode { OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS }
     fn visit_cart_coordinate(
         &mut self,
         topology: OTF2_CartTopologyRef,
         rank: u32,
         coordinates: &[u32],
-    ) -> OTF2_CallbackCode;
+    ) -> OTF2_CallbackCode { OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS }
 
     // Interrupt definitions
     fn visit_interrupt_generator(
@@ -264,7 +264,7 @@ pub trait DefinitionVisitor {
         base: OTF2_Base,
         exponent: i64,
         period: u64,
-    ) -> OTF2_CallbackCode;
+    ) -> OTF2_CallbackCode { OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS }
 
     // I/O definitions
     fn visit_io_file_property(
@@ -273,19 +273,19 @@ pub trait DefinitionVisitor {
         name: OTF2_StringRef,
         type_: OTF2_Type,
         value: OTF2_AttributeValue,
-    ) -> OTF2_CallbackCode;
+    ) -> OTF2_CallbackCode { OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS }
     fn visit_io_regular_file(
         &mut self,
         defn: OTF2_IoFileRef,
         name: OTF2_StringRef,
         scope: OTF2_SystemTreeNodeRef,
-    ) -> OTF2_CallbackCode;
+    ) -> OTF2_CallbackCode { OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS }
     fn visit_io_directory(
         &mut self,
         defn: OTF2_IoFileRef,
         name: OTF2_StringRef,
         scope: OTF2_SystemTreeNodeRef,
-    ) -> OTF2_CallbackCode;
+    ) -> OTF2_CallbackCode { OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS }
     fn visit_io_handle(
         &mut self,
         defn: OTF2_IoHandleRef,
@@ -295,30 +295,31 @@ pub trait DefinitionVisitor {
         io_handle_flags: OTF2_IoHandleFlag,
         comm: Option<OTF2_CommRef>,
         parent: Option<OTF2_IoHandleRef>,
-    ) -> OTF2_CallbackCode;
+    ) -> OTF2_CallbackCode { OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS }
     fn visit_io_pre_created_handle_state(
         &mut self,
         io_handle: OTF2_IoHandleRef,
         mode: OTF2_IoAccessMode,
         status_flags: OTF2_IoStatusFlag,
-    ) -> OTF2_CallbackCode;
+    ) -> OTF2_CallbackCode { OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS }
 
     // Unknown definition fallback
-    fn visit_unknown(&mut self) -> OTF2_CallbackCode;
+    fn visit_unknown(&mut self) -> OTF2_CallbackCode { OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS }
 }
 
-pub struct DefinitionVisitorMultiplexer {
-    visitors: Vec<Box<dyn DefinitionVisitor>>,
+#[derive(Debug)]
+pub struct DefinitionVisitorMultiplexer<'a> {
+    visitors: Vec<&'a mut dyn DefinitionVisitor>,
 }
 
-impl DefinitionVisitorMultiplexer {
+impl<'a> DefinitionVisitorMultiplexer<'a> {
     pub fn new() -> Self {
         Self {
             visitors: Vec::new(),
         }
     }
 
-    pub fn add_visitor(&mut self, visitor: Box<dyn DefinitionVisitor>) {
+    pub fn add_visitor(&mut self, visitor: &'a mut (dyn DefinitionVisitor + 'a)) {
         self.visitors.push(visitor);
     }
 

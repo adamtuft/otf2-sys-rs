@@ -82,6 +82,11 @@ impl_display_for_newtype!(OTF2_InterruptGeneratorRef);
 impl_display_for_newtype!(OTF2_IoFileRef);
 impl_display_for_newtype!(OTF2_IoHandleRef);
 impl_display_for_newtype!(OTF2_Type);
+impl_display_for_newtype!(OTF2_LocationType);
+impl_display_for_newtype!(OTF2_LocationGroupType);
+impl_display_for_newtype!(OTF2_GroupType);
+impl_display_for_newtype!(OTF2_MetricType);
+impl_display_for_newtype!(OTF2_ParameterType);
 
 impl From<OTF2_Type> for OTF2_Type_enum {
     fn from(value: OTF2_Type) -> Self {

@@ -38,11 +38,11 @@ impl std::fmt::Display for Status {
     }
 }
 
-impl From<c::OTF2_ErrorCode> for Status {
-    fn from(code: c::OTF2_ErrorCode) -> Self {
-        Status(code)
-    }
-}
+// impl From<c::OTF2_ErrorCode> for Status {
+//     fn from(code: c::OTF2_ErrorCode) -> Self {
+//         Status(code)
+//     }
+// }
 
 impl FromResidual<Status> for Status {
     fn from_residual(residual: Status) -> Self {

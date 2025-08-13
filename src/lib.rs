@@ -6,6 +6,7 @@ mod archive;
 mod c;
 mod definition;
 mod error;
+mod event;
 mod handle;
 mod print_defs;
 mod reader;

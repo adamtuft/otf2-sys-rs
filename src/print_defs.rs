@@ -7,6 +7,7 @@ use std::ffi::CStr;
 use crate::definition::DefinitionVisitor;
 
 /// A visitor that prints all definition information to stderr
+#[derive(Debug)]
 pub struct PrintingDefinitionVisitor;
 
 impl PrintingDefinitionVisitor {
