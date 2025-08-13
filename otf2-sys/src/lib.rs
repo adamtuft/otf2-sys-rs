@@ -2,13 +2,13 @@
 #![allow(unused_imports)]
 #![allow(dead_code)]
 
-mod archive;
+// mod archive;
 mod c;
-mod definition;
+// mod definition;
 mod error;
-mod event;
+// mod event;
 mod handle;
-mod print_defs;
+// mod print_defs;
 mod reader;
 
 pub mod file {
@@ -19,8 +19,6 @@ pub mod file {
 }
 
 mod internal {
-    pub use derive_builder::Builder;
-    // pub use super::error::IntoStatusResult;
     pub use super::c::*;
     pub use super::handle::*;
 }
