@@ -8,9 +8,19 @@ use crate::c;
 /// Note: by implementing `Try` this excludes `OTF2_SUCCESS` which means this only represents
 /// error states.
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-pub struct Status(c::OTF2_ErrorCode);
+pub struct StatusCode(c::OTF2_ErrorCode);
 
-impl Status {
+pub type Status<T> = std::result::Result<T, StatusCode>;
+
+impl StatusCode {
+    pub fn ok() -> Self {
+        StatusCode(c::OTF2_ErrorCode::OTF2_SUCCESS)
+    }
+
+    pub fn is_ok(&self) -> bool {
+        self.0 == c::OTF2_ErrorCode::OTF2_SUCCESS
+    }
+
     pub fn code(&self) -> c::OTF2_ErrorCode {
         self.0
     }
@@ -30,42 +40,43 @@ impl Status {
             )
         }
     }
+
+    /// This is `pub(crate)` so that consumers of this crate can't create invalid values by passing
+    /// OTF2_SUCCESS.
+    pub(crate) fn from_raw(code: c::OTF2_ErrorCode) -> Self {
+        assert!(code != c::OTF2_ErrorCode::OTF2_SUCCESS, "Cannot create StatusCode from OTF2_SUCCESS");
+        StatusCode(code)
+    }
 }
 
-impl std::fmt::Display for Status {
+impl std::fmt::Display for StatusCode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}: {}", self.name(), self.description())
     }
 }
 
-// impl From<c::OTF2_ErrorCode> for Status {
-//     fn from(code: c::OTF2_ErrorCode) -> Self {
-//         Status(code)
-//     }
-// }
-
-impl FromResidual<Status> for Status {
-    fn from_residual(residual: Status) -> Self {
+impl FromResidual<StatusCode> for StatusCode {
+    fn from_residual(residual: StatusCode) -> Self {
         residual
     }
 }
 
-impl FromResidual<Status> for Result<(), Status> {
-    fn from_residual(residual: Status) -> Self {
+impl<T> FromResidual<StatusCode> for Status<T> {
+    fn from_residual(residual: StatusCode) -> Self {
         Err(residual)
     }
 }
 
-impl Try for Status {
+impl Try for StatusCode {
     type Output = ();
-    type Residual = Status;
+    type Residual = StatusCode;
 
     fn from_output(_output: Self::Output) -> Self {
         Self(c::OTF2_ErrorCode::OTF2_SUCCESS)
     }
 
     fn branch(self) -> std::ops::ControlFlow<Self::Residual, Self::Output> {
-        if self.0 == c::OTF2_ErrorCode::OTF2_SUCCESS {
+        if self.is_ok() {
             std::ops::ControlFlow::Continue(())
         } else {
             std::ops::ControlFlow::Break(self)
@@ -73,11 +84,9 @@ impl Try for Status {
     }
 }
 
-pub type StatusResult<T> = std::result::Result<T, Status>;
-
-impl From<Status> for StatusResult<()> {
-    fn from(value: Status) -> Self {
-        if value.0 == c::OTF2_ErrorCode::OTF2_SUCCESS {
+impl From<StatusCode> for Status<()> {
+    fn from(value: StatusCode) -> Self {
+        if value.is_ok() {
             Ok(())
         } else {
             Err(value)
@@ -85,27 +94,11 @@ impl From<Status> for StatusResult<()> {
     }
 }
 
-impl From<c::OTF2_ErrorCode> for StatusResult<()> {
+impl From<c::OTF2_ErrorCode> for Status<()> {
     fn from(code: c::OTF2_ErrorCode) -> Self {
-        Status(code).into()
+        StatusCode(code).into()
     }
 }
-
-// pub trait IntoStatusResult {
-//     fn into_result(self) -> StatusResult<()>;
-// }
-
-// impl<T> IntoStatusResult for Option<T>
-// where
-//     T: Into<StatusResult<()>>,
-// {
-//     fn into_result(self) -> StatusResult<()> {
-//         match self {
-//             Some(code) => code.into(),
-//             None => Ok(()),
-//         }
-//     }
-// }
 
 impl FromResidual for c::OTF2_ErrorCode {
     fn from_residual(residual: <Self as Try>::Residual) -> Self {
@@ -113,15 +106,15 @@ impl FromResidual for c::OTF2_ErrorCode {
     }
 }
 
-impl FromResidual<c::OTF2_ErrorCode> for Result<(), Status> {
+impl FromResidual<c::OTF2_ErrorCode> for Status<()> {
     fn from_residual(residual: c::OTF2_ErrorCode) -> Self {
-        Err(Status(residual))
+        Err(StatusCode(residual))
     }
 }
 
 impl Try for c::OTF2_ErrorCode {
     type Output = ();
-    type Residual = Status;
+    type Residual = StatusCode;
 
     fn from_output(_: Self::Output) -> Self {
         c::OTF2_ErrorCode::OTF2_SUCCESS
@@ -131,7 +124,7 @@ impl Try for c::OTF2_ErrorCode {
         if self == c::OTF2_ErrorCode::OTF2_SUCCESS {
             std::ops::ControlFlow::Continue(())
         } else {
-            std::ops::ControlFlow::Break(Status(self))
+            std::ops::ControlFlow::Break(StatusCode(self))
         }
     }
 }
@@ -142,14 +135,14 @@ mod test {
 
     #[test]
     fn test_otf2_error_success() {
-        let result: StatusResult<()> = c::OTF2_ErrorCode::OTF2_SUCCESS.into();
+        let result: Status<()> = c::OTF2_ErrorCode::OTF2_SUCCESS.into();
         dbg!(&result);
         assert_eq!(result, Ok(()));
     }
 
     #[test]
     fn test_otf2_error_eacces() {
-        let error = Status(c::OTF2_ErrorCode::OTF2_ERROR_EACCES);
+        let error = StatusCode(c::OTF2_ErrorCode::OTF2_ERROR_EACCES);
         dbg!(&error);
         dbg!(error.name());
         dbg!(error.description());
@@ -158,9 +151,9 @@ mod test {
 
     #[test]
     fn can_use_question_operator_on_status() {
-        let fails = || -> Status { Status(c::OTF2_ErrorCode::OTF2_ERROR_EACCES) };
-        let succeeds = || -> Status { Status(c::OTF2_ErrorCode::OTF2_SUCCESS) };
-        let fallible = |f: fn() -> Status| -> Result<(), Status> {
+        let fails = || -> StatusCode { StatusCode(c::OTF2_ErrorCode::OTF2_ERROR_EACCES) };
+        let succeeds = || -> StatusCode { StatusCode(c::OTF2_ErrorCode::OTF2_SUCCESS) };
+        let fallible = |f: fn() -> StatusCode| -> Status<()> {
             f()?;
             Ok(())
         };
@@ -176,7 +169,7 @@ mod test {
     fn can_use_question_operator_on_code() {
         let fails = || -> c::OTF2_ErrorCode { c::OTF2_ErrorCode::OTF2_ERROR_EACCES };
         let succeeds = || -> c::OTF2_ErrorCode { c::OTF2_ErrorCode::OTF2_SUCCESS };
-        let fallible = |f: fn() -> c::OTF2_ErrorCode| -> Result<(), Status> {
+        let fallible = |f: fn() -> c::OTF2_ErrorCode| -> Status<()> {
             f()?;
             Ok(())
         };
@@ -188,7 +181,7 @@ mod test {
         assert!(expect_success.is_ok());
         assert_eq!(
             expect_error,
-            Err(Status(c::OTF2_ErrorCode::OTF2_ERROR_EACCES))
+            Err(StatusCode(c::OTF2_ErrorCode::OTF2_ERROR_EACCES))
         );
         assert_eq!(expect_success, Ok(()));
     }

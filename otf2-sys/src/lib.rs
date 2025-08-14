@@ -4,11 +4,11 @@
 
 // mod archive;
 mod c;
-// mod definition;
+mod definition;
 mod error;
-// mod event;
+mod event;
 mod handle;
-// mod print_defs;
+mod print_defs;
 mod reader;
 
 pub mod file {

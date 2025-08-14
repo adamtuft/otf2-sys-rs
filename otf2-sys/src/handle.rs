@@ -1,69 +1,59 @@
-use core::ops::Drop;
-use std::{borrow::Borrow, mem::ManuallyDrop};
+//! Defines a thin wrapper around a raw pointer which can be used to ensure safe access
+//! to the underlying data. Is not concerned with allocation or clean-up of the pointer.
 
-use crate::error::Status;
-
-pub struct Handle<T, U>
-{
+pub struct Handle<T> {
     handle: *mut T,
-    drop_fn: fn(&mut T) -> U,
     _marker: std::marker::PhantomData<T>,
     owned_type: &'static str,
 }
 
-impl<T, U> std::fmt::Debug for Handle<T, U>
+impl<T> std::fmt::Debug for Handle<T>
 where
-    T: std::fmt::Debug
+    T: std::fmt::Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Handle")
-            .field("owned_type", &self.owned_type)
-            .field("owned_value", &self.as_ref())
-            .field("handle", &self.handle)
-            .field("drop_fn", &self.drop_fn)
-            .finish()
+        write!(f, "Handle<{}> at {:?}", self.owned_type, self.handle)
     }
 }
 
-impl<T, U> Handle<T, U>
-{
-    /// Create a new handle from a raw pointer and a drop function. If the pointer is null, returns
+impl<T> Handle<T> {
+    /// Create a new handle from a raw pointer. If the pointer is null, returns
     /// `None`.
     /// 
     /// # Visibility
     /// 
     /// This is `pub(crate)` because it can only be created by calling FFI functions. Consumers
     /// of the crate shouldn't create handles directly, instead specialisations of this type
-    /// should define constructors that manage creation of handles.
-    pub(crate) fn new(handle: *mut T, drop_fn: fn(&mut T) -> U) -> Option<Self> {
+    /// should define constructors and destructors that manage creation and destruction of handles.
+    pub(crate) fn from_raw(handle: *mut T) -> Option<Self> {
         if handle.is_null() {
             None
         } else {
-            Some(Self { handle, drop_fn, _marker: std::marker::PhantomData, owned_type: std::any::type_name::<T>()})
+            let typename = std::any::type_name::<T>();
+            let owned_type = typename.strip_suffix("_struct")
+                .unwrap_or(typename);
+            let owned_type = owned_type.rsplit_once("::")
+                .map_or(owned_type, |(_, name)| name);
+            Some(Self { handle, _marker: std::marker::PhantomData, owned_type })
         }
     }
 
-    pub fn dropped(&self) -> bool {
+    pub fn is_null(&self) -> bool {
         self.handle.is_null()
     }
 
-    fn panic_if_dropped(&self) {
-        if self.dropped() {
-            panic!("attempted to access a dropped handle");
+    fn panic_if_null(&self) {
+        if self.is_null() {
+            panic!("attempted to access a null handle");
         }
     }
 
-    /// Call the drop function for the handle, returning the result. Panics if the handle has
-    /// already been dropped.
+    /// Nullify the handle, returning a raw pointer to the underlying value.
     /// 
-    /// # Panics
-    /// 
-    /// Will panic if the handle has already been dropped.
-    pub fn drop_handle(&mut self) -> U {
-        self.panic_if_dropped();
-        let result = (self.drop_fn)(self.as_mut());
+    pub fn take(&mut self) -> *mut T {
+        let ptr = self.handle;
         self.handle = std::ptr::null_mut();
-        result
+        ptr
     }
 
     /// Get a safe shared reference to the handle. Useful to allow enforcing lifetime semantics
@@ -73,7 +63,7 @@ impl<T, U> Handle<T, U>
     ///
     /// Will panic if the handle has been dropped.
     pub fn as_ref(&self) -> &T {
-        self.panic_if_dropped();
+        self.panic_if_null();
         unsafe { &*self.handle }
     }
 
@@ -84,7 +74,7 @@ impl<T, U> Handle<T, U>
     ///
     /// Will panic if the handle has been dropped.
     pub fn as_mut(&mut self) -> &mut T {
-        self.panic_if_dropped();
+        self.panic_if_null();
         unsafe { &mut *self.handle }
     }
 
@@ -99,8 +89,8 @@ impl<T, U> Handle<T, U>
     /// 
     /// This function is marked as `pub(crate)` because it is necessary for calling low-level FFI
     /// functions. It should not be exposed to consumers of the crate.
-    pub(crate) fn as_raw(&self) -> *const T {
-        self.panic_if_dropped();
+    pub(crate) fn as_ptr(&self) -> *const T {
+        self.panic_if_null();
         self.handle as _
     }
 
@@ -115,31 +105,15 @@ impl<T, U> Handle<T, U>
     /// 
     /// This function is marked as `pub(crate)` because it is necessary for calling low-level FFI
     /// functions. It should not be exposed to consumers of the crate.
-    pub(crate) fn as_raw_mut(&mut self) -> *mut T {
-        self.panic_if_dropped();
-        self.as_raw() as _
+    pub(crate) fn as_mut_ptr(&mut self) -> *mut T {
+        self.panic_if_null();
+        self.as_ptr() as _
     }
 }
 
-impl<T, E> Drop for Handle<T, E> {
-    fn drop(&mut self) {
-        if !self.dropped() {
-            #[cfg(test)]
-            {
-                eprintln!("Dropping handle to {} at {:?}", self.owned_type, self.handle);
-            }
-            // SAFETY: We verified that the handle is not null.
-            self.drop_handle();
-        }
-    }
-}
-
-impl<T, U> Into<*mut T> for Handle<T, U> {
-    fn into(self) -> *mut T {
-        // SAFETY: Ownership is being transferred to the caller, so the handle should not be
-        // dropped after the owned pointer is moved out.
-        let mut this = ManuallyDrop::new(self);
-        this.as_raw_mut()
+impl<T> Into<*mut T> for Handle<T> {
+    fn into(mut self) -> *mut T {
+        self.take()
     }
 }
 
@@ -147,46 +121,35 @@ impl<T, U> Into<*mut T> for Handle<T, U> {
 mod tests {
     use super::*;
 
+    #[derive(Debug, derive_more::Deref, derive_more::DerefMut)]
+    struct NumberHandle(Handle<i32>);
+
+    impl NumberHandle {
+        fn new(value: i32) -> Self {
+            let handle = Handle::from_raw(Box::into_raw(Box::new(value))).expect("Failed to create handle");
+            Self(handle)
+        }
+    }
+
+    impl Drop for NumberHandle {
+        fn drop(&mut self) {
+            if !self.0.is_null() {
+                unsafe { drop(Box::from_raw(self.0.take())) };
+            }
+        }
+    }
+
     #[test]
     fn test_handle() {
-        let handle = Handle::new(Box::into_raw(Box::new(42)), |ptr| {
-            // To drop from the current handle, transfer ownership to a Box which will deallocate
-            // when dropped.
-            unsafe { Box::from_raw(ptr) }
-        });
-        dbg!(&handle);
-        assert!(handle.is_some());
-        let mut handle = handle.unwrap();
-        assert_eq!(*handle.as_ref(), 42);
-        assert_eq!(unsafe { *handle.as_raw() }, 42);
-        assert_eq!(unsafe { *handle.as_raw_mut() }, 42);
-        assert!(!handle.dropped());
-        let dropped_value = handle.drop_handle();
-        assert!(handle.dropped());
-        assert_eq!(*dropped_value, 42);
-        let other_handle = Handle::new(std::ptr::null_mut(), |_ptr: &mut bool| {
-            unreachable!("This should not be called");
-        });
+        let mut handle = NumberHandle::new(42);
+        assert_eq!(handle.as_ref(), &42);
+        assert_eq!(unsafe { *handle.as_ptr() }, 42);
+        assert_eq!(unsafe { *handle.as_mut_ptr() }, 42);
+        assert!(!handle.is_null());
+        let dropped_value = handle.take();
+        assert!(handle.is_null());
+        assert_eq!(unsafe { *dropped_value }, 42);
+        let other_handle: Option<Handle<bool>> = Handle::from_raw(std::ptr::null_mut());
         assert!(other_handle.is_none());
-        let good_handle = Handle::new(Box::into_raw(Box::new(100)), |ptr| {
-            unsafe { Box::from_raw(ptr) }
-        });
-        dbg!(&good_handle);
-        assert!(good_handle.is_some());
-        let good_handle = Handle::new(Box::into_raw(Box::new(false)), |ptr| {
-            unsafe { Box::from_raw(ptr) }
-        });
-        dbg!(&good_handle);
-        assert!(good_handle.is_some());
-        let good_handle = Handle::new(Box::into_raw(Box::new(vec![false, true, false])), |ptr| {
-            unsafe { Box::from_raw(ptr) }
-        });
-        dbg!(&good_handle);
-        assert!(good_handle.is_some());
-        let good_handle = Handle::new(Box::into_raw(Box::new(vec!["hello", "world!"])), |ptr| {
-            unsafe { Box::from_raw(ptr) }
-        });
-        dbg!(&good_handle);
-        assert!(good_handle.is_some());
     }
 }

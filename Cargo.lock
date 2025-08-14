@@ -1067,6 +1067,7 @@ dependencies = [
  "autotools",
  "bindgen",
  "derive_builder",
+ "derive_more",
  "directories",
  "fetch-source",
  "thiserror",
