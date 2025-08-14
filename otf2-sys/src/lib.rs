@@ -8,15 +8,7 @@ mod definition;
 mod error;
 mod event;
 mod handle;
-mod print_defs;
 mod reader;
-
-pub mod file {
-    use super::c;
-    pub type Mode = c::OTF2_FileMode_enum;
-    pub type Substrate = c::OTF2_FileSubstrate_enum;
-    pub type Compression = c::OTF2_Compression_enum;
-}
 
 mod internal {
     pub use super::c::*;
