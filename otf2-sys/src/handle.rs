@@ -29,13 +29,18 @@ impl<T> Handle<T> {
         if handle.is_null() {
             None
         } else {
-            let typename = std::any::type_name::<T>();
-            let owned_type = typename.strip_suffix("_struct")
-                .unwrap_or(typename);
-            let owned_type = owned_type.rsplit_once("::")
-                .map_or(owned_type, |(_, name)| name);
-            Some(Self { handle, _marker: std::marker::PhantomData, owned_type })
+            Some(Handle::from_raw_unchecked(handle))
         }
+    }
+
+    /// WARNING: only use this if you *know* the given pointer is valid!!!
+    pub(crate) fn from_raw_unchecked(handle: *mut T) -> Self {
+        let typename = std::any::type_name::<T>();
+        let owned_type = typename.strip_suffix("_struct")
+            .unwrap_or(typename);
+        let owned_type = owned_type.rsplit_once("::")
+            .map_or(owned_type, |(_, name)| name);
+        Self { handle, _marker: std::marker::PhantomData, owned_type }
     }
 
     pub fn is_null(&self) -> bool {

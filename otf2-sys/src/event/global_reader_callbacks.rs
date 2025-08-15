@@ -2,6 +2,7 @@
 
 use crate::error::Status;
 use crate::internal::*;
+use crate::attribute::AttributeIterator;
 use std::ffi::CStr;
 
 use super::visitor::EventVisitor;
@@ -63,8 +64,9 @@ mod visitor_callbacks {
         creating_thread: u32,
         generation_number: u32) -> OTF2_CallbackCode
     {
+        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
         for visitor in as_visitors(user_data) {
-            let code = visitor.visit_thread_task_create_event(location_id, time, attribute_list, thread_team, creating_thread, generation_number);
+            let code = visitor.visit_thread_task_create_event(location_id, time, &attributes, thread_team, creating_thread, generation_number);
             if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
                 return code;
             }
@@ -81,8 +83,9 @@ mod visitor_callbacks {
         creating_thread: u32,
         generation_number: u32) -> OTF2_CallbackCode
     {
+        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
         for visitor in as_visitors(user_data) {
-            let code = visitor.visit_thread_task_switch_event(location_id, time, attribute_list, thread_team, creating_thread, generation_number);
+            let code = visitor.visit_thread_task_switch_event(location_id, time, &attributes, thread_team, creating_thread, generation_number);
             if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
                 return code;
             }

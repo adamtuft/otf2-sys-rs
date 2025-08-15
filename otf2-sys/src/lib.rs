@@ -2,6 +2,7 @@
 #![allow(unused_imports)]
 #![allow(dead_code)]
 
+mod attribute;
 mod c;
 mod definition;
 mod error;

@@ -2,6 +2,7 @@
 
 use crate::error::Status;
 use crate::internal::*;
+use crate::attribute::AttributeValue;
 use std::ffi::CStr;
 
 use crate::event::EventVisitor;
@@ -21,7 +22,7 @@ impl EventVisitor for PrintingEventVisitor {
         &mut self,
         location_id: OTF2_LocationRef,
         time: OTF2_TimeStamp,
-        attribute_list: *mut OTF2_AttributeList,
+        attributes: &[(OTF2_AttributeRef, AttributeValue)],
         thread_team: OTF2_CommRef,
         creating_thread: u32,
         generation_number: u32,
@@ -30,6 +31,7 @@ impl EventVisitor for PrintingEventVisitor {
             "Thread Task Create Event at {} on location {}: thread_team {}, creating_thread {}, generation_number {}",
             time, location_id, thread_team, creating_thread, generation_number
         );
+        dbg!(attributes);
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
 
@@ -37,7 +39,7 @@ impl EventVisitor for PrintingEventVisitor {
         &mut self,
         location_id: OTF2_LocationRef,
         time: OTF2_TimeStamp,
-        attribute_list: *mut OTF2_AttributeList,
+        attributes: &[(OTF2_AttributeRef, AttributeValue)],
         thread_team: OTF2_CommRef,
         creating_thread: u32,
         generation_number: u32,
@@ -46,6 +48,7 @@ impl EventVisitor for PrintingEventVisitor {
             "Thread Task Switch Event at {} on location {}: thread_team {}, creating_thread {}, generation_number {}",
             time, location_id, thread_team, creating_thread, generation_number
         );
+        dbg!(attributes);
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
 }

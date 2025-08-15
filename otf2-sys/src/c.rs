@@ -90,35 +90,41 @@ impl_display_for_newtype!(OTF2_ParameterType);
 
 impl From<OTF2_Type> for OTF2_Type_enum {
     fn from(value: OTF2_Type) -> Self {
+        use OTF2_Type_enum::*;
         match value {
-            OTF2_Type(0) => OTF2_Type_enum::OTF2_TYPE_NONE,
-            OTF2_Type(1) => OTF2_Type_enum::OTF2_TYPE_UINT8,
-            OTF2_Type(2) => OTF2_Type_enum::OTF2_TYPE_UINT16,
-            OTF2_Type(3) => OTF2_Type_enum::OTF2_TYPE_UINT32,
-            OTF2_Type(4) => OTF2_Type_enum::OTF2_TYPE_UINT64,
-            OTF2_Type(5) => OTF2_Type_enum::OTF2_TYPE_INT8,
-            OTF2_Type(6) => OTF2_Type_enum::OTF2_TYPE_INT16,
-            OTF2_Type(7) => OTF2_Type_enum::OTF2_TYPE_INT32,
-            OTF2_Type(8) => OTF2_Type_enum::OTF2_TYPE_INT64,
-            OTF2_Type(9) => OTF2_Type_enum::OTF2_TYPE_FLOAT,
-            OTF2_Type(10) => OTF2_Type_enum::OTF2_TYPE_DOUBLE,
-            OTF2_Type(11) => OTF2_Type_enum::OTF2_TYPE_STRING,
-            OTF2_Type(12) => OTF2_Type_enum::OTF2_TYPE_ATTRIBUTE,
-            OTF2_Type(13) => OTF2_Type_enum::OTF2_TYPE_LOCATION,
-            OTF2_Type(14) => OTF2_Type_enum::OTF2_TYPE_REGION,
-            OTF2_Type(15) => OTF2_Type_enum::OTF2_TYPE_GROUP,
-            OTF2_Type(16) => OTF2_Type_enum::OTF2_TYPE_METRIC,
-            OTF2_Type(17) => OTF2_Type_enum::OTF2_TYPE_COMM,
-            OTF2_Type(18) => OTF2_Type_enum::OTF2_TYPE_PARAMETER,
-            OTF2_Type(19) => OTF2_Type_enum::OTF2_TYPE_RMA_WIN,
-            OTF2_Type(20) => OTF2_Type_enum::OTF2_TYPE_SOURCE_CODE_LOCATION,
-            OTF2_Type(21) => OTF2_Type_enum::OTF2_TYPE_CALLING_CONTEXT,
-            OTF2_Type(22) => OTF2_Type_enum::OTF2_TYPE_INTERRUPT_GENERATOR,
-            OTF2_Type(23) => OTF2_Type_enum::OTF2_TYPE_IO_FILE,
-            OTF2_Type(24) => OTF2_Type_enum::OTF2_TYPE_IO_HANDLE,
-            OTF2_Type(25) => OTF2_Type_enum::OTF2_TYPE_LOCATION_GROUP,
-            _ => unreachable!(),
+            OTF2_Type(1) => OTF2_TYPE_UINT8,
+            OTF2_Type(2) => OTF2_TYPE_UINT16,
+            OTF2_Type(3) => OTF2_TYPE_UINT32,
+            OTF2_Type(4) => OTF2_TYPE_UINT64,
+            OTF2_Type(5) => OTF2_TYPE_INT8,
+            OTF2_Type(6) => OTF2_TYPE_INT16,
+            OTF2_Type(7) => OTF2_TYPE_INT32,
+            OTF2_Type(8) => OTF2_TYPE_INT64,
+            OTF2_Type(9) => OTF2_TYPE_FLOAT,
+            OTF2_Type(10) => OTF2_TYPE_DOUBLE,
+            OTF2_Type(11) => OTF2_TYPE_STRING,
+            OTF2_Type(12) => OTF2_TYPE_ATTRIBUTE,
+            OTF2_Type(13) => OTF2_TYPE_LOCATION,
+            OTF2_Type(14) => OTF2_TYPE_REGION,
+            OTF2_Type(15) => OTF2_TYPE_GROUP,
+            OTF2_Type(16) => OTF2_TYPE_METRIC,
+            OTF2_Type(17) => OTF2_TYPE_COMM,
+            OTF2_Type(18) => OTF2_TYPE_PARAMETER,
+            OTF2_Type(19) => OTF2_TYPE_RMA_WIN,
+            OTF2_Type(20) => OTF2_TYPE_SOURCE_CODE_LOCATION,
+            OTF2_Type(21) => OTF2_TYPE_CALLING_CONTEXT,
+            OTF2_Type(22) => OTF2_TYPE_INTERRUPT_GENERATOR,
+            OTF2_Type(23) => OTF2_TYPE_IO_FILE,
+            OTF2_Type(24) => OTF2_TYPE_IO_HANDLE,
+            OTF2_Type(25) => OTF2_TYPE_LOCATION_GROUP,
+            OTF2_Type(_) => OTF2_TYPE_NONE,
         }
+    }
+}
+
+impl OTF2_Type {
+    pub fn to_enum(self) -> OTF2_Type_enum {
+        self.into()
     }
 }
 
@@ -173,3 +179,4 @@ impl OTF2_AttributeValue {
         }
     }
 }
+
