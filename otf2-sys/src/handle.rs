@@ -116,9 +116,9 @@ impl<T> Handle<T> {
     }
 }
 
-impl<T> Into<*mut T> for Handle<T> {
-    fn into(mut self) -> *mut T {
-        self.take()
+impl<T> From<Handle<T>> for *mut T {
+    fn from(mut val: Handle<T>) -> Self {
+        val.take()
     }
 }
 

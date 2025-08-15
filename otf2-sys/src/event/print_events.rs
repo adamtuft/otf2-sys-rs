@@ -51,4 +51,18 @@ impl EventVisitor for PrintingEventVisitor {
         dbg!(attributes);
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
+
+    fn visit_buffer_flush_event(&mut self,
+        location_id: OTF2_LocationRef,
+        time: OTF2_TimeStamp,
+        attributes: &[(OTF2_AttributeRef, AttributeValue)],
+        stop_time: u64
+    ) -> OTF2_CallbackCode {
+        eprintln!(
+            "Buffer Flush Event at {} on location {} (stop_time: {})",
+            time, location_id, stop_time
+        );
+        dbg!(attributes);
+        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
+    }
 }
