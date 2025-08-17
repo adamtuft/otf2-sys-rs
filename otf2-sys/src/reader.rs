@@ -12,12 +12,39 @@ use std::ops::ControlFlow;
 
 use OTF2_ErrorCode::*;
 
+macro_rules! declare_type_states {
+    ($($state_name:ident),*) => {
+        mod private {
+            pub trait Sealed {}
+        }
+
+        mod states {
+            use super::private;
+            pub trait State: private::Sealed {}
+            $(
+                #[derive(Debug, Clone, Copy)]
+                pub struct $state_name;
+                impl private::Sealed for $state_name {}
+                impl State for $state_name {}
+            )*
+        }
+    }
+}
+
+declare_type_states!(Open, Readable);
+
 struct LocalEvtFiles<'r> {
-    reader: &'r mut Reader,
+    reader: &'r mut ReadyReader,
+}
+
+impl core::ops::Drop for LocalEvtFiles<'_> {
+    fn drop(&mut self) {
+        let _ = unsafe { OTF2_Reader_CloseEvtFiles(self.reader.handle.as_mut_ptr()) };
+    }
 }
 
 impl<'r> LocalEvtFiles<'r> {
-    fn open(reader: &'r mut Reader) -> Status<Self> {
+    fn open(reader: &'r mut ReadyReader) -> Status<Self> {
         unsafe { OTF2_Reader_OpenEvtFiles(reader.handle.as_mut_ptr()) }?;
         Ok(LocalEvtFiles { reader })
     }
@@ -31,29 +58,8 @@ impl<'r> LocalEvtFiles<'r> {
     }
 }
 
-impl core::ops::Drop for LocalEvtFiles<'_> {
-    fn drop(&mut self) {
-        let _ = unsafe { OTF2_Reader_CloseEvtFiles(self.reader.handle.as_mut_ptr()) };
-    }
-}
-
 struct LocalDefFiles<'r> {
-    reader: &'r mut Reader,
-}
-
-impl<'r> LocalDefFiles<'r> {
-    fn open(reader: &'r mut Reader) -> Status<Self> {
-        unsafe { OTF2_Reader_OpenDefFiles(reader.handle.as_mut_ptr()) }?;
-        Ok(LocalDefFiles { reader })
-    }
-
-    fn read_local_definitions(self, locations: &[OTF2_LocationRef]) -> Status<u64> {
-        let mut definitions_read: u64 = 0;
-        for &location in locations {
-            definitions_read += LocalDefReader::new(self.reader, location).read_definitions()?;
-        }
-        Ok(definitions_read)
-    }
+    reader: &'r mut ReadyReader,
 }
 
 impl core::ops::Drop for LocalDefFiles<'_> {
@@ -62,8 +68,23 @@ impl core::ops::Drop for LocalDefFiles<'_> {
     }
 }
 
+impl<'r> LocalDefFiles<'r> {
+    fn open(reader: &'r mut ReadyReader) -> Status<Self> {
+        unsafe { OTF2_Reader_OpenDefFiles(reader.handle.as_mut_ptr()) }?;
+        Ok(LocalDefFiles { reader })
+    }    
+
+    fn read_local_definitions(self, locations: &[OTF2_LocationRef]) -> Status<u64> {
+        let mut definitions_read: u64 = 0;
+        for &location in locations {
+            definitions_read += LocalDefReader::new(self.reader, location).read_definitions()?;
+        }    
+        Ok(definitions_read)
+    }    
+}    
+
 struct LocalDefReader<'r> {
-    reader: &'r mut Reader,
+    reader: &'r mut ReadyReader,
     handle: Handle<OTF2_DefReader>,
 }
 
@@ -76,7 +97,7 @@ impl core::ops::Drop for LocalDefReader<'_> {
 }
 
 impl<'r> LocalDefReader<'r> {
-    pub fn new(reader: &'r mut Reader, location: OTF2_LocationRef) -> Self {
+    pub fn new(reader: &'r mut ReadyReader, location: OTF2_LocationRef) -> Self {
         let handle = Handle::from_raw(unsafe { OTF2_Reader_GetDefReader(reader.handle.as_mut_ptr(), location) })
             .expect("failed to get local def reader");
         LocalDefReader { reader, handle }
@@ -96,30 +117,105 @@ impl<'r> LocalDefReader<'r> {
 }
 
 #[derive(Debug)]
-struct GlobalEvtReader<'r> {
-    reader: &'r mut Reader,
-    handle: Handle<OTF2_GlobalEvtReader>,
+struct GlobalDefReader<'r> {
+    handle: Handle<OTF2_GlobalDefReader>,
+    reader: &'r mut OpenReader,
 }
 
-impl core::ops::Drop for GlobalEvtReader<'_> {
+impl<'r> core::ops::Drop for GlobalDefReader<'r> {
     fn drop(&mut self) {
-        if !self.handle.is_null() {
-            let _ = unsafe { OTF2_Reader_CloseGlobalEvtReader(self.reader.handle.as_mut_ptr(), self.handle.as_mut_ptr()) };
+        unsafe {
+            let _ = OTF2_Reader_CloseGlobalDefReader(self.reader.handle.as_mut_ptr(), self.handle.as_mut_ptr());
         }
     }
 }
 
-impl<'r> GlobalEvtReader<'r> {
-    fn new(reader: &'r mut Reader) -> Self {
+impl<'r> GlobalDefReader<'r> {
+    fn new(reader: &'r mut OpenReader) -> Status<Self> {
+        let handle = Handle::from_raw(unsafe { OTF2_Reader_GetGlobalDefReader(reader.handle.as_mut_ptr()) }).ok_or(StatusCode::from_raw(OTF2_ERROR_MEM_ALLOC_FAILED))?;
+        Ok(GlobalDefReader { handle, reader })
+    }
+
+    fn read_global_definitions(mut self, def_visitor: &mut impl DefinitionVisitor, callbacks: &mut GlobalDefReaderCallbacks) -> Status<u64> {
+        let mut definitions_read: u64 = 0;
+        unsafe {
+            OTF2_Reader_RegisterGlobalDefCallbacks(
+                self.reader.handle.as_mut_ptr(),
+                self.handle.as_mut_ptr(),
+                callbacks.as_mut_ptr(),
+                def_visitor as *const _ as *mut _,
+            )?;
+            OTF2_Reader_ReadAllGlobalDefinitions(
+                self.reader.handle.as_mut_ptr(),
+                self.handle.as_mut_ptr(),
+                &mut definitions_read,
+            )?;
+        }
+        Ok(definitions_read)
+    }
+}
+
+#[derive(Debug)]
+pub struct Reader<S: states::State> {
+    handle: Handle<OTF2_Reader>,
+    _state: std::marker::PhantomData<S>,
+}
+
+type OpenReader = Reader<states::Open>;
+type ReadyReader = Reader<states::Readable>;
+
+impl<S: states::State> core::ops::Drop for Reader<S> {
+    fn drop(&mut self) {
+        unsafe {
+            let _ = OTF2_Reader_Close(self.handle.take());
+        }
+    }
+}
+
+pub fn open(anchor_file: CString) -> Status<OpenReader> {
+    let mut handle = Handle::from_raw(unsafe { OTF2_Reader_Open(anchor_file.as_ptr()) }).ok_or(StatusCode::from_raw(OTF2_ERROR_MEM_ALLOC_FAILED))?;
+    unsafe { OTF2_Reader_SetSerialCollectiveCallbacks(handle.as_mut_ptr())}?;
+    Ok(OpenReader {
+        handle,
+        _state: std::marker::PhantomData,
+    })
+}
+
+impl OpenReader {
+    pub fn get_global_definitions(mut self, def_visitor: &mut impl DefinitionVisitor, num_definitions: &mut u64) -> Status<ReadyReader> {
+        let mut callbacks = GlobalDefReaderCallbacks::new()?;
+        *num_definitions = GlobalDefReader::new(&mut self)?.read_global_definitions(def_visitor, &mut callbacks)?;
+        Ok(ReadyReader { handle: Handle::from_raw_unchecked(self.handle.take()), _state: std::marker::PhantomData })
+    }
+}
+
+#[derive(Debug)]
+pub struct GlobalEvtReader {
+    handle: Handle<OTF2_GlobalEvtReader>,
+    reader: ReadyReader,
+}
+
+impl core::ops::Drop for GlobalEvtReader {
+    fn drop(&mut self) {
+        if !self.handle.is_null() {
+            unsafe {
+                let _ = OTF2_Reader_CloseGlobalEvtReader(self.reader.handle.as_mut_ptr(), self.handle.take());
+            }
+        }
+    }
+}
+
+impl GlobalEvtReader {
+    fn new(mut reader: ReadyReader) -> Self {
         let handle = Handle::from_raw(unsafe { OTF2_Reader_GetGlobalEvtReader(reader.handle.as_mut_ptr()) })
             .expect("failed to get global evt reader");
         GlobalEvtReader { reader, handle }
     }
 
-    pub fn read_events(&mut self, visitors: Vec<&mut dyn EventVisitor>, batch_size: std::num::NonZeroU64) -> Status<u64> {
+    pub fn read_events(&mut self, visitor: &mut dyn EventVisitor, batch_size: std::num::NonZeroU64) -> Status<u64> {
         let mut total_events = 0;
         let callbacks = GlobalEvtReaderCallbacks::new()?;
-        unsafe { OTF2_GlobalEvtReader_SetCallbacks(self.handle.as_mut_ptr(), callbacks.as_ptr(), &visitors as *const _ as *mut _) }?;
+        unsafe { OTF2_GlobalEvtReader_SetCallbacks(self.handle.as_mut_ptr(), callbacks.as_ptr(), visitor as *const _ as *mut _) }?;
         loop {
             match self.read_next_event_batch(batch_size)? {
                 ControlFlow::Continue(events_read) => {
@@ -145,94 +241,14 @@ impl<'r> GlobalEvtReader<'r> {
     }
 }
 
-#[derive(Debug)]
-struct Reader {
-    handle: Handle<OTF2_Reader>,
-    global_def_reader_handle: Handle<OTF2_GlobalDefReader>,
-}
+impl ReadyReader {
 
-impl core::ops::Deref for Reader {
-    type Target = OTF2_Reader;
-
-    fn deref(&self) -> &Self::Target {
-        self.handle.as_ref()
-    }
-}
-
-impl core::ops::DerefMut for Reader {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.handle.as_mut()
-    }
-}
-
-impl core::ops::Drop for Reader {
-    fn drop(&mut self) {
-        if !self.handle.is_null() {
-            let reader = self.handle.take();
-            let global_def_reader = self.global_def_reader_handle.take();
-            unsafe {
-                let _ = OTF2_Reader_CloseGlobalDefReader(reader, global_def_reader);
-                let _ = OTF2_Reader_Close(reader);
-            }
-        }
-    }
-}
-
-impl Reader {
-    /// Open a new OTF2 reader from the given anchor file and read all definitions.
-    pub fn open(anchor_file: CString) -> Status<Self> {
-        let mut reader = Reader::create_handles(&anchor_file).ok_or(StatusCode::from_raw(OTF2_ERROR_MEM_ALLOC_FAILED))?;
-        reader.set_serial_collective_callbacks()?;
-        let mut locations = LocationRegistry::new();
-        let mut callbacks = GlobalDefReaderCallbacks::new()?;
-        reader.read_global_definitions(vec![&mut locations], &mut callbacks)?;
-        let locations: Vec<_> = locations.into_keys().collect();
-        reader.select_locations(&locations)?;
-        reader.read_local_definitions(&locations)?;
-        reader.prepare_evt_files(&locations)?;
-        Ok(reader)
-    }
-
-    pub fn get_global_evt_reader(&'_ mut self) -> GlobalEvtReader<'_> {
-        GlobalEvtReader::new(self)
-    }
-
-    fn create_handles(anchor_file: &CStr) -> Option<Self> {
-        let mut handle = Handle::from_raw(unsafe { OTF2_Reader_Open(anchor_file.as_ptr()) })?;
-        let global_def_reader_handle = Handle::from_raw(unsafe { OTF2_Reader_GetGlobalDefReader(handle.as_mut_ptr()) })?;
-        Some(Reader { handle, global_def_reader_handle })
-    }
-
-    pub fn get_global_definitions(&mut self, visitors: Vec<&mut dyn DefinitionVisitor>) -> Status<u64> {
-        let mut callbacks = GlobalDefReaderCallbacks::new()?;
-        self.read_global_definitions(visitors, &mut callbacks)
-    }
-
-    fn read_global_definitions(&mut self, mut visitors: Vec<&mut dyn DefinitionVisitor>, callbacks: &mut GlobalDefReaderCallbacks) -> Status<u64> {
-        let mut definitions_read: u64 = 0;
-        unsafe {
-            OTF2_Reader_RegisterGlobalDefCallbacks(
-                self.handle.as_mut_ptr(),
-                self.global_def_reader_handle.as_mut_ptr(),
-                callbacks.as_mut_ptr(),
-                &mut visitors as *const _ as *mut _,
-            )?;
-            OTF2_Reader_ReadAllGlobalDefinitions(
-                self.handle.as_mut_ptr(),
-                self.global_def_reader_handle.as_mut_ptr(),
-                &mut definitions_read,
-            )?;
-        }
-        Ok(definitions_read)
-    }
-
-    fn read_local_definitions(&mut self, locations: &[OTF2_LocationRef]) -> Status<u64> {
-        LocalDefFiles::open(self)?.read_local_definitions(locations)
-    }
-
-    fn prepare_evt_files(&mut self, locations: &[OTF2_LocationRef]) -> Status<()> {
-        LocalEvtFiles::open(self)?.prepare_evt_files(locations);
-        Ok(())
+    /// Consumes the `Reader` to produce a `GlobalEvtReader` for reading all events from the trace
+    pub fn into_global_evt_reader(mut self, locations: &[OTF2_LocationRef]) -> Status<GlobalEvtReader> {
+        self.select_locations(locations)?;
+        LocalDefFiles::open(&mut self)?.read_local_definitions(locations)?;
+        LocalEvtFiles::open(&mut self)?.prepare_evt_files(locations);
+        Ok(GlobalEvtReader::new(self))
     }
 
     fn select_locations(&mut self, locations: &[OTF2_LocationRef]) -> Status<()> {
@@ -241,14 +257,12 @@ impl Reader {
         }
         Ok(())
     }
-
-    fn set_serial_collective_callbacks(&mut self) -> Status<()> {
-        unsafe { OTF2_Reader_SetSerialCollectiveCallbacks(self.handle.as_mut_ptr()).into() }
-    }
 }
 
 #[cfg(test)]
 mod test {
+    use core::num;
+
     use super::*;
 
     use crate::event::PrintingEventVisitor;
@@ -256,12 +270,16 @@ mod test {
     #[test]
     fn test_reader() {
         let anchor_file = CString::new("/home/adam/Dropbox/Durham-RA/experiments/bots-strassen/trace/serial_512.15132/serial_512.15132.otf2").expect("Failed to create CString");
-        let reader = Reader::open(anchor_file);
+        let reader = open(anchor_file);
         dbg!(&reader);
         let mut reader = reader.unwrap();
+        let mut locations = LocationRegistry::new();
+        let mut num_definitions = 0;
+        let mut reader = reader.get_global_definitions(&mut locations, &mut num_definitions).expect("Failed to get global definitions");
+        let location_refs = locations.keys().cloned().collect::<Vec<_>>();
+        let mut global_evt_reader = reader.into_global_evt_reader(&location_refs).expect("Failed to get global event reader");
         let mut evt_printer = PrintingEventVisitor;
-        let mut global_evt_reader = reader.get_global_evt_reader();
-        global_evt_reader.read_events(vec![&mut evt_printer], std::num::NonZeroU64::new(100).unwrap()).expect("Failed to read events");
+        global_evt_reader.read_events(&mut evt_printer, std::num::NonZeroU64::new(1000).unwrap()).expect("Failed to read events");
         dbg!(&global_evt_reader);
     }
 }

@@ -3,6 +3,22 @@
 use crate::internal::*;
 use std::ffi::CStr;
 
+pub struct DefinitionVisitorWrapper<'v>(&'v mut dyn DefinitionVisitor);
+
+impl<'v> DefinitionVisitorWrapper<'v> {
+    pub fn new(visitor: &'v mut dyn DefinitionVisitor) -> Self {
+        DefinitionVisitorWrapper(visitor)
+    }
+
+    pub fn as_ref(&mut self) -> &dyn DefinitionVisitor {
+        self.0
+    }
+
+    pub fn as_mut(&mut self) -> &mut dyn DefinitionVisitor {
+        self.0
+    }
+}
+
 pub trait DefinitionVisitor: std::fmt::Debug {
     fn visit_string(&mut self, defn: OTF2_StringRef, value: &CStr) -> OTF2_CallbackCode { OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS }
     fn visit_location(
