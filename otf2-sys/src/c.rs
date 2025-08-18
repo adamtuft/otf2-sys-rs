@@ -3,10 +3,10 @@
 #![allow(non_snake_case)]
 #![allow(dead_code)]
 
+include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
+
 // These constants added manually because bindgen doesn't like to parse the '#define' statements
 // for them
-
-include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
 pub const OTF2_UNDEFINED_UINT8: u8 = !0u8;
 pub const OTF2_UNDEFINED_INT8: i8 = !(OTF2_UNDEFINED_UINT8 >> 1) as i8;
@@ -125,6 +125,12 @@ impl From<OTF2_Type> for OTF2_Type_enum {
 impl OTF2_Type {
     pub fn to_enum(self) -> OTF2_Type_enum {
         self.into()
+    }
+}
+
+impl std::fmt::Debug for OTF2_MetricValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("OTF2_MetricValue(<union>)").finish()
     }
 }
 

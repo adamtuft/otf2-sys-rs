@@ -5,13 +5,13 @@ use crate::internal::*;
 use crate::attribute::AttributeIterator;
 use std::ffi::CStr;
 
-use super::visitor::EventVisitor;
+use super::visitor::{Event, EventKind};
+
+use std::collections::VecDeque;
 
 /// Safe wrapper around OTF2_GlobalEvtReaderCallbacks
 /// 
-/// Registers callbacks for reading events in OTF2 traces. These callbacks expect a
-/// vector of mutable references to `EventVisitor` trait objects, each of which will be
-/// notified of the events as they are read from the trace.
+/// Registers callbacks for reading events in OTF2 traces.
 #[derive(Debug, derive_more::Deref, derive_more::DerefMut)]
 pub struct GlobalEvtReaderCallbacks(Handle<OTF2_GlobalEvtReaderCallbacks_struct>);
 
@@ -132,892 +132,347 @@ impl GlobalEvtReaderCallbacks {
 
 mod visitor_callbacks {
     use super::*;
+    use std::os::raw::c_void;
 
     #[inline]
-    fn as_visitors<'a, 'b>(data: *mut ::std::os::raw::c_void) -> &'a mut Vec<&'b mut dyn EventVisitor> {
-        unsafe { &mut *(data as *mut Vec<&mut dyn EventVisitor>) }
-    }
-
-    pub unsafe extern "C" fn on_unknown_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_unknown_event(location_id, time, &attributes);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_buffer_flush_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, stop_time: OTF2_TimeStamp ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_buffer_flush_event(location_id, time, &attributes, stop_time);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_measurement_on_off_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, measurement_mode: OTF2_MeasurementMode ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_measurement_on_off_event(location_id, time, &attributes, measurement_mode);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_enter_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, region: OTF2_RegionRef ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_enter_event(location_id, time, &attributes, region);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_leave_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, region: OTF2_RegionRef ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_leave_event(location_id, time, &attributes, region);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_mpi_send_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, receiver: u32, communicator: OTF2_CommRef, msg_tag: u32, msg_length: u64 ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_mpi_send_event(location_id, time, &attributes, receiver, communicator, msg_tag, msg_length);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_mpi_isend_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, receiver: u32, communicator: OTF2_CommRef, msg_tag: u32, msg_length: u64, request_id: u64 ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_mpi_isend_event(location_id, time, &attributes, receiver, communicator, msg_tag, msg_length, request_id);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_mpi_isend_complete_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, request_id: u64 ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_mpi_isend_complete_event(location_id, time, &attributes, request_id);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_mpi_irecv_request_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, request_id: u64 ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_mpi_irecv_request_event(location_id, time, &attributes, request_id);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_mpi_recv_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, sender: u32, communicator: OTF2_CommRef, msg_tag: u32, msg_length: u64 ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_mpi_recv_event(location_id, time, &attributes, sender, communicator, msg_tag, msg_length);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_mpi_irecv_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, sender: u32, communicator: OTF2_CommRef, msg_tag: u32, msg_length: u64, request_id: u64 ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_mpi_irecv_event(location_id, time, &attributes, sender, communicator, msg_tag, msg_length, request_id);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_mpi_request_test_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, request_id: u64 ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_mpi_request_test_event(location_id, time, &attributes, request_id);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_mpi_request_cancelled_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, request_id: u64 ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_mpi_request_cancelled_event(location_id, time, &attributes, request_id);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_mpi_collective_begin_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_mpi_collective_begin_event(location_id, time, &attributes);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_mpi_collective_end_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, collective_op: OTF2_CollectiveOp, communicator: OTF2_CommRef, root: u32, size_sent: u64, size_received: u64 ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_mpi_collective_end_event(location_id, time, &attributes, collective_op, communicator, root, size_sent, size_received);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_omp_fork_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, number_of_requested_threads: u32 ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_omp_fork_event(location_id, time, &attributes, number_of_requested_threads);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_omp_join_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_omp_join_event(location_id, time, &attributes);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_omp_acquire_lock_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, lock_id: u32, acquisition_order: u32 ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_omp_acquire_lock_event(location_id, time, &attributes, lock_id, acquisition_order);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_omp_release_lock_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, lock_id: u32, acquisition_order: u32 ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_omp_release_lock_event(location_id, time, &attributes, lock_id, acquisition_order);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_omp_task_create_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, task_id: u64 ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_omp_task_create_event(location_id, time, &attributes, task_id);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_omp_task_switch_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, task_id: u64 ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_omp_task_switch_event(location_id, time, &attributes, task_id);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_omp_task_complete_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, task_id: u64 ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_omp_task_complete_event(location_id, time, &attributes, task_id);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_metric_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, metric: OTF2_MetricRef, number_of_metrics: u8, type_ids: *const OTF2_Type, metric_values: *const OTF2_MetricValue ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-    let type_ids_slice = unsafe { std::slice::from_raw_parts(type_ids, number_of_metrics as usize) };
-    let metric_values_slice = unsafe { std::slice::from_raw_parts(metric_values, number_of_metrics as usize) };
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_metric_event(location_id, time, &attributes, metric, type_ids_slice, metric_values_slice);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_parameter_string_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, parameter: OTF2_ParameterRef, string: OTF2_StringRef ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_parameter_string_event(location_id, time, &attributes, parameter, string);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_parameter_int_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, parameter: OTF2_ParameterRef, value: i64 ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_parameter_int_event(location_id, time, &attributes, parameter, value);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_parameter_unsigned_int_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, parameter: OTF2_ParameterRef, value: u64 ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_parameter_unsigned_int_event(location_id, time, &attributes, parameter, value);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_rma_win_create_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, win: OTF2_RmaWinRef ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_rma_win_create_event(location_id, time, &attributes, win);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_rma_win_destroy_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, win: OTF2_RmaWinRef ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_rma_win_destroy_event(location_id, time, &attributes, win);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_rma_collective_begin_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_rma_collective_begin_event(location_id, time, &attributes);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_rma_collective_end_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, collective_op: OTF2_CollectiveOp, sync_level: OTF2_RmaSyncLevel, win: OTF2_RmaWinRef, root: u32, bytes_sent: u64, bytes_received: u64 ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_rma_collective_end_event(location_id, time, &attributes, collective_op, sync_level, win, root, bytes_sent, bytes_received);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_rma_group_sync_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, sync_level: OTF2_RmaSyncLevel, win: OTF2_RmaWinRef, group: OTF2_GroupRef ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_rma_group_sync_event(location_id, time, &attributes, sync_level, win, group);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_rma_request_lock_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, win: OTF2_RmaWinRef, remote: u32, lock_id: u64, lock_type: OTF2_LockType ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_rma_request_lock_event(location_id, time, &attributes, win, remote, lock_id, lock_type);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_rma_acquire_lock_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, win: OTF2_RmaWinRef, remote: u32, lock_id: u64, lock_type: OTF2_LockType ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_rma_acquire_lock_event(location_id, time, &attributes, win, remote, lock_id, lock_type);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_rma_try_lock_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, win: OTF2_RmaWinRef, remote: u32, lock_id: u64, lock_type: OTF2_LockType ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_rma_try_lock_event(location_id, time, &attributes, win, remote, lock_id, lock_type);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_rma_release_lock_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, win: OTF2_RmaWinRef, remote: u32, lock_id: u64 ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_rma_release_lock_event(location_id, time, &attributes, win, remote, lock_id);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_rma_sync_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, win: OTF2_RmaWinRef, remote: u32, sync_type: OTF2_RmaSyncType ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_rma_sync_event(location_id, time, &attributes, win, remote, sync_type);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_rma_wait_change_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, win: OTF2_RmaWinRef ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_rma_wait_change_event(location_id, time, &attributes, win);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_rma_put_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, win: OTF2_RmaWinRef, remote: u32, bytes: u64, matching_id: u64 ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_rma_put_event(location_id, time, &attributes, win, remote, bytes, matching_id);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_rma_get_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, win: OTF2_RmaWinRef, remote: u32, bytes: u64, matching_id: u64 ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_rma_get_event(location_id, time, &attributes, win, remote, bytes, matching_id);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_rma_atomic_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, win: OTF2_RmaWinRef, remote: u32, type_: OTF2_RmaAtomicType, bytes_sent: u64, bytes_received: u64, matching_id: u64 ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_rma_atomic_event(location_id, time, &attributes, win, remote, type_, bytes_sent, bytes_received, matching_id);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_rma_op_complete_blocking_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, win: OTF2_RmaWinRef, matching_id: u64 ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_rma_op_complete_blocking_event(location_id, time, &attributes, win, matching_id);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_rma_op_complete_non_blocking_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, win: OTF2_RmaWinRef, matching_id: u64 ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_rma_op_complete_non_blocking_event(location_id, time, &attributes, win, matching_id);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_rma_op_test_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, win: OTF2_RmaWinRef, matching_id: u64 ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_rma_op_test_event(location_id, time, &attributes, win, matching_id);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_rma_op_complete_remote_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, win: OTF2_RmaWinRef, matching_id: u64 ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_rma_op_complete_remote_event(location_id, time, &attributes, win, matching_id);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_thread_fork_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, model: OTF2_Paradigm, number_of_requested_threads: u32 ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_thread_fork_event(location_id, time, &attributes, model, number_of_requested_threads);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_thread_join_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, model: OTF2_Paradigm ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_thread_join_event(location_id, time, &attributes, model);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_thread_team_begin_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, thread_team: OTF2_CommRef ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_thread_team_begin_event(location_id, time, &attributes, thread_team);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_thread_team_end_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, thread_team: OTF2_CommRef ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_thread_team_end_event(location_id, time, &attributes, thread_team);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_thread_acquire_lock_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, model: OTF2_Paradigm, lock_id: u32, acquisition_order: u32 ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_thread_acquire_lock_event(location_id, time, &attributes, model, lock_id, acquisition_order);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_thread_release_lock_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, model: OTF2_Paradigm, lock_id: u32, acquisition_order: u32 ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_thread_release_lock_event(location_id, time, &attributes, model, lock_id, acquisition_order);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_thread_task_create_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, thread_team: OTF2_CommRef, creating_thread: u32, generation_number: u32 ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_thread_task_create_event(location_id, time, &attributes, thread_team, creating_thread, generation_number);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_thread_task_switch_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, thread_team: OTF2_CommRef, creating_thread: u32, generation_number: u32 ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_thread_task_switch_event(location_id, time, &attributes, thread_team, creating_thread, generation_number);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_thread_task_complete_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, thread_team: OTF2_CommRef, creating_thread: u32, generation_number: u32 ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_thread_task_complete_event(location_id, time, &attributes, thread_team, creating_thread, generation_number);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_thread_create_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, thread_contingent: OTF2_CommRef, sequence_count: u64 ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_thread_create_event(location_id, time, &attributes, thread_contingent, sequence_count);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_thread_begin_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, thread_contingent: OTF2_CommRef, sequence_count: u64 ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_thread_begin_event(location_id, time, &attributes, thread_contingent, sequence_count);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_thread_wait_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, thread_contingent: OTF2_CommRef, sequence_count: u64 ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_thread_wait_event(location_id, time, &attributes, thread_contingent, sequence_count);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_thread_end_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, thread_contingent: OTF2_CommRef, sequence_count: u64 ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_thread_end_event(location_id, time, &attributes, thread_contingent, sequence_count);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_calling_context_enter_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, calling_context: OTF2_CallingContextRef, unwind_distance: u32 ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_calling_context_enter_event(location_id, time, &attributes, calling_context, unwind_distance);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_calling_context_leave_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, calling_context: OTF2_CallingContextRef ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_calling_context_leave_event(location_id, time, &attributes, calling_context);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_calling_context_sample_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, calling_context: OTF2_CallingContextRef, unwind_distance: u32, interrupt_generator: OTF2_InterruptGeneratorRef ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_calling_context_sample_event(location_id, time, &attributes, calling_context, unwind_distance, interrupt_generator);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_io_create_handle_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, handle: OTF2_IoHandleRef, mode: OTF2_IoAccessMode, creation_flags: OTF2_IoCreationFlag, status_flags: OTF2_IoStatusFlag ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_io_create_handle_event(location_id, time, &attributes, handle, mode, creation_flags, status_flags);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_io_destroy_handle_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, handle: OTF2_IoHandleRef ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_io_destroy_handle_event(location_id, time, &attributes, handle);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_io_duplicate_handle_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, old_handle: OTF2_IoHandleRef, new_handle: OTF2_IoHandleRef, status_flags: OTF2_IoStatusFlag ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_io_duplicate_handle_event(location_id, time, &attributes, old_handle, new_handle, status_flags);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_io_seek_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, handle: OTF2_IoHandleRef, offset_request: i64, whence: OTF2_IoSeekOption, offset_result: u64 ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_io_seek_event(location_id, time, &attributes, handle, offset_request, whence, offset_result);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_io_change_status_flags_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, handle: OTF2_IoHandleRef, status_flags: OTF2_IoStatusFlag ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_io_change_status_flags_event(location_id, time, &attributes, handle, status_flags);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_io_delete_file_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, io_paradigm: OTF2_IoParadigmRef, file: OTF2_IoFileRef ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_io_delete_file_event(location_id, time, &attributes, io_paradigm, file);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_io_operation_begin_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, handle: OTF2_IoHandleRef, mode: OTF2_IoOperationMode, operation_flags: OTF2_IoOperationFlag, bytes_request: u64, matching_id: u64 ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_io_operation_begin_event(location_id, time, &attributes, handle, mode, operation_flags, bytes_request, matching_id);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_io_operation_test_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, handle: OTF2_IoHandleRef, matching_id: u64 ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_io_operation_test_event(location_id, time, &attributes, handle, matching_id);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_io_operation_issued_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, handle: OTF2_IoHandleRef, matching_id: u64 ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_io_operation_issued_event(location_id, time, &attributes, handle, matching_id);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_io_operation_complete_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, handle: OTF2_IoHandleRef, bytes_result: u64, matching_id: u64 ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_io_operation_complete_event(location_id, time, &attributes, handle, bytes_result, matching_id);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_io_operation_cancelled_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, handle: OTF2_IoHandleRef, matching_id: u64 ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_io_operation_cancelled_event(location_id, time, &attributes, handle, matching_id);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_io_acquire_lock_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, handle: OTF2_IoHandleRef, lock_type: OTF2_LockType ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_io_acquire_lock_event(location_id, time, &attributes, handle, lock_type);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_io_release_lock_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, handle: OTF2_IoHandleRef, lock_type: OTF2_LockType ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_io_release_lock_event(location_id, time, &attributes, handle, lock_type);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_io_try_lock_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, handle: OTF2_IoHandleRef, lock_type: OTF2_LockType ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_io_try_lock_event(location_id, time, &attributes, handle, lock_type);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_program_begin_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, program_name: OTF2_StringRef, number_of_arguments: u32, program_arguments: *const OTF2_StringRef ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        let program_arguments = unsafe { std::slice::from_raw_parts(program_arguments, number_of_arguments as usize) };
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_program_begin_event(location_id, time, &attributes, program_name, program_arguments);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_program_end_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, exit_status: i64 ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_program_end_event(location_id, time, &attributes, exit_status);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_non_blocking_collective_request_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, request_id: u64 ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_non_blocking_collective_request_event(location_id, time, &attributes, request_id);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_non_blocking_collective_complete_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, collective_op: OTF2_CollectiveOp, communicator: OTF2_CommRef, root: u32, size_sent: u64, size_received: u64, request_id: u64 ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_non_blocking_collective_complete_event(location_id, time, &attributes, collective_op, communicator, root, size_sent, size_received, request_id);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_comm_create_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, communicator: OTF2_CommRef ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_comm_create_event(location_id, time, &attributes, communicator);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
-    }
-
-    pub unsafe extern "C" fn on_comm_destroy_event(location_id: OTF2_LocationRef, time: OTF2_TimeStamp, user_data: *mut ::std::os::raw::c_void, attribute_list: *mut OTF2_AttributeList, communicator: OTF2_CommRef ) -> OTF2_CallbackCode {
-        let attributes: Vec<_> = Handle::from_raw_unchecked(attribute_list).into_iter().collect();
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_comm_destroy_event(location_id, time, &attributes, communicator);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
+    fn as_event_queue<'a>(data: *mut c_void) -> &'a mut VecDeque<Event> {
+        assert!(!data.is_null(), "callback user data must not be null pointer");
+        unsafe { &mut *(data as *mut _) }
+    }
+
+    macro_rules! into_attributes {
+        ($list:ident) => {
+            Handle::from_raw_unchecked($list).into_iter().collect::<Vec<_>>()
         }
-        OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
+    }
+
+    macro_rules! push_event {
+        ($queue:ident, $location:ident, $time:ident, $attr:ident, $kind:expr) => {{
+            as_event_queue($queue).push_back(Event::new($location, $time, into_attributes!($attr), $kind));
+            OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
+        }}
+    }
+
+    pub unsafe extern "C" fn on_unknown_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::Unknown)
+    }
+
+    pub unsafe extern "C" fn on_buffer_flush_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, stop_time: OTF2_TimeStamp ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::BufferFlush { stop_time })
+    }
+
+    pub unsafe extern "C" fn on_measurement_on_off_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, measurement_mode: OTF2_MeasurementMode ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::MeasurementOnOff { measurement_mode })
+    }
+
+    pub unsafe extern "C" fn on_enter_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, region: OTF2_RegionRef ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::Enter { region })
+    }
+
+    pub unsafe extern "C" fn on_leave_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, region: OTF2_RegionRef ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::Leave { region })
+    }
+
+    pub unsafe extern "C" fn on_mpi_send_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, receiver: u32, communicator: OTF2_CommRef, msg_tag: u32, msg_length: u64 ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::MpiSend { receiver, communicator, msg_tag, msg_length })
+    }
+
+    pub unsafe extern "C" fn on_mpi_isend_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, receiver: u32, communicator: OTF2_CommRef, msg_tag: u32, msg_length: u64, request_id: u64 ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::MpiIsend { receiver, communicator, msg_tag, msg_length, request_id })
+    }
+
+    pub unsafe extern "C" fn on_mpi_isend_complete_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, request_id: u64 ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::MpiIsendComplete { request_id })
+    }
+
+    pub unsafe extern "C" fn on_mpi_irecv_request_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, request_id: u64 ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::MpiIrecvRequest { request_id })
+    }
+
+    pub unsafe extern "C" fn on_mpi_recv_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, sender: u32, communicator: OTF2_CommRef, msg_tag: u32, msg_length: u64 ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::MpiRecv { sender, communicator, msg_tag, msg_length })
+    }
+
+    pub unsafe extern "C" fn on_mpi_irecv_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, sender: u32, communicator: OTF2_CommRef, msg_tag: u32, msg_length: u64, request_id: u64 ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::MpiIrecv { sender, communicator, msg_tag, msg_length, request_id })
+    }
+
+    pub unsafe extern "C" fn on_mpi_request_test_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, request_id: u64 ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::MpiRequestTest { request_id })
+    }
+
+    pub unsafe extern "C" fn on_mpi_request_cancelled_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, request_id: u64 ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::MpiRequestCancelled { request_id })
+    }
+
+    pub unsafe extern "C" fn on_mpi_collective_begin_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::MpiCollectiveBegin)
+    }
+
+    pub unsafe extern "C" fn on_mpi_collective_end_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, collective_op: OTF2_CollectiveOp, communicator: OTF2_CommRef, root: u32, size_sent: u64, size_received: u64 ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::MpiCollectiveEnd { collective_op, communicator, root, size_sent, size_received })
+    }
+
+    pub unsafe extern "C" fn on_omp_fork_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, number_of_requested_threads: u32 ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::OmpFork { number_of_requested_threads })
+    }
+
+    pub unsafe extern "C" fn on_omp_join_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::OmpJoin)
+    }
+
+    pub unsafe extern "C" fn on_omp_acquire_lock_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, lock_id: u32, acquisition_order: u32 ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::OmpAcquireLock { lock_id, acquisition_order })
+    }
+
+    pub unsafe extern "C" fn on_omp_release_lock_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, lock_id: u32, acquisition_order: u32 ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::OmpReleaseLock { lock_id, acquisition_order })
+    }
+
+    pub unsafe extern "C" fn on_omp_task_create_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, task_id: u64 ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::OmpTaskCreate { task_id })
+    }
+
+    pub unsafe extern "C" fn on_omp_task_switch_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, task_id: u64 ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::OmpTaskSwitch { task_id })
+    }
+
+    pub unsafe extern "C" fn on_omp_task_complete_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, task_id: u64 ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::OmpTaskComplete { task_id })
+    }
+
+    pub unsafe extern "C" fn on_metric_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, metric: OTF2_MetricRef, number_of_metrics: u8, type_ids: *const OTF2_Type, metric_values: *const OTF2_MetricValue ) -> OTF2_CallbackCode {
+        let type_ids = unsafe { std::slice::from_raw_parts(type_ids, number_of_metrics as usize) }.to_vec();
+        let metric_values = unsafe { std::slice::from_raw_parts(metric_values, number_of_metrics as usize) }.to_vec();
+        push_event!(queue, location, time, attributes, EventKind::Metric { metric, type_ids, metric_values })
+    }
+
+    pub unsafe extern "C" fn on_parameter_string_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, parameter: OTF2_ParameterRef, string: OTF2_StringRef ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::ParameterString { parameter, string })
+    }
+
+    pub unsafe extern "C" fn on_parameter_int_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, parameter: OTF2_ParameterRef, value: i64 ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::ParameterInt { parameter, value })
+    }
+
+    pub unsafe extern "C" fn on_parameter_unsigned_int_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, parameter: OTF2_ParameterRef, value: u64 ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::ParameterUnsignedInt { parameter, value })
+    }
+
+    pub unsafe extern "C" fn on_rma_win_create_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, win: OTF2_RmaWinRef ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::RmaWinCreate { win })
+    }
+
+    pub unsafe extern "C" fn on_rma_win_destroy_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, win: OTF2_RmaWinRef ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::RmaWinDestroy { win })
+    }
+
+    pub unsafe extern "C" fn on_rma_collective_begin_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::RmaCollectiveBegin)
+    }
+
+    pub unsafe extern "C" fn on_rma_collective_end_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, collective_op: OTF2_CollectiveOp, sync_level: OTF2_RmaSyncLevel, win: OTF2_RmaWinRef, root: u32, bytes_sent: u64, bytes_received: u64 ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::RmaCollectiveEnd { collective_op, sync_level, win, root, bytes_sent, bytes_received })
+    }
+
+    pub unsafe extern "C" fn on_rma_group_sync_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, sync_level: OTF2_RmaSyncLevel, win: OTF2_RmaWinRef, group: OTF2_GroupRef ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::RmaGroupSync { sync_level, win, group })
+    }
+
+    pub unsafe extern "C" fn on_rma_request_lock_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, win: OTF2_RmaWinRef, remote: u32, lock_id: u64, lock_type: OTF2_LockType ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::RmaRequestLock { win, remote, lock_id, lock_type })
+    }
+
+    pub unsafe extern "C" fn on_rma_acquire_lock_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, win: OTF2_RmaWinRef, remote: u32, lock_id: u64, lock_type: OTF2_LockType ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::RmaAcquireLock { win, remote, lock_id, lock_type })
+    }
+
+    pub unsafe extern "C" fn on_rma_try_lock_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, win: OTF2_RmaWinRef, remote: u32, lock_id: u64, lock_type: OTF2_LockType ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::RmaTryLock { win, remote, lock_id, lock_type })
+    }
+
+    pub unsafe extern "C" fn on_rma_release_lock_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, win: OTF2_RmaWinRef, remote: u32, lock_id: u64 ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::RmaReleaseLock { win, remote, lock_id })
+    }
+
+    pub unsafe extern "C" fn on_rma_sync_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, win: OTF2_RmaWinRef, remote: u32, sync_type: OTF2_RmaSyncType ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::RmaSync { win, remote, sync_type })
+    }
+
+    pub unsafe extern "C" fn on_rma_wait_change_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, win: OTF2_RmaWinRef ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::RmaWaitChange { win })
+    }
+
+    pub unsafe extern "C" fn on_rma_put_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, win: OTF2_RmaWinRef, remote: u32, bytes: u64, matching_id: u64 ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::RmaPut { win, remote, bytes, matching_id })
+    }
+
+    pub unsafe extern "C" fn on_rma_get_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, win: OTF2_RmaWinRef, remote: u32, bytes: u64, matching_id: u64 ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::RmaGet { win, remote, bytes, matching_id })
+    }
+
+    pub unsafe extern "C" fn on_rma_atomic_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, win: OTF2_RmaWinRef, remote: u32, type_: OTF2_RmaAtomicType, bytes_sent: u64, bytes_received: u64, matching_id: u64 ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::RmaAtomic { win, remote, type_, bytes_sent, bytes_received, matching_id })
+    }
+
+    pub unsafe extern "C" fn on_rma_op_complete_blocking_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, win: OTF2_RmaWinRef, matching_id: u64 ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::RmaOpCompleteBlocking { win, matching_id })
+    }
+
+    pub unsafe extern "C" fn on_rma_op_complete_non_blocking_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, win: OTF2_RmaWinRef, matching_id: u64 ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::RmaOpCompleteNonBlocking { win, matching_id })
+    }
+
+    pub unsafe extern "C" fn on_rma_op_test_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, win: OTF2_RmaWinRef, matching_id: u64 ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::RmaOpTest { win, matching_id })
+    }
+
+    pub unsafe extern "C" fn on_rma_op_complete_remote_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, win: OTF2_RmaWinRef, matching_id: u64 ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::RmaOpCompleteRemote { win, matching_id })
+    }
+
+    pub unsafe extern "C" fn on_thread_fork_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, model: OTF2_Paradigm, number_of_requested_threads: u32 ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::ThreadFork { model, number_of_requested_threads })
+    }
+
+    pub unsafe extern "C" fn on_thread_join_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, model: OTF2_Paradigm ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::ThreadJoin { model })
+    }
+
+    pub unsafe extern "C" fn on_thread_team_begin_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, thread_team: OTF2_CommRef ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::ThreadTeamBegin { thread_team })
+    }
+
+    pub unsafe extern "C" fn on_thread_team_end_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, thread_team: OTF2_CommRef ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::ThreadTeamEnd { thread_team })
+    }
+
+    pub unsafe extern "C" fn on_thread_acquire_lock_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, model: OTF2_Paradigm, lock_id: u32, acquisition_order: u32 ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::ThreadAcquireLock { model, lock_id, acquisition_order })
+    }
+
+    pub unsafe extern "C" fn on_thread_release_lock_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, model: OTF2_Paradigm, lock_id: u32, acquisition_order: u32 ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::ThreadReleaseLock { model, lock_id, acquisition_order })
+    }
+
+    pub unsafe extern "C" fn on_thread_task_create_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, thread_team: OTF2_CommRef, creating_thread: u32, generation_number: u32 ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::ThreadTaskCreate { thread_team, creating_thread, generation_number })
+    }
+
+    pub unsafe extern "C" fn on_thread_task_switch_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, thread_team: OTF2_CommRef, creating_thread: u32, generation_number: u32 ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::ThreadTaskSwitch { thread_team, creating_thread, generation_number })
+    }
+
+    pub unsafe extern "C" fn on_thread_task_complete_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, thread_team: OTF2_CommRef, creating_thread: u32, generation_number: u32 ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::ThreadTaskComplete { thread_team, creating_thread, generation_number })
+    }
+
+    pub unsafe extern "C" fn on_thread_create_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, thread_contingent: OTF2_CommRef, sequence_count: u64 ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::ThreadCreate { thread_contingent, sequence_count })
+    }
+
+    pub unsafe extern "C" fn on_thread_begin_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, thread_contingent: OTF2_CommRef, sequence_count: u64 ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::ThreadBegin { thread_contingent, sequence_count })
+    }
+
+    pub unsafe extern "C" fn on_thread_wait_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, thread_contingent: OTF2_CommRef, sequence_count: u64 ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::ThreadWait { thread_contingent, sequence_count })
+    }
+
+    pub unsafe extern "C" fn on_thread_end_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, thread_contingent: OTF2_CommRef, sequence_count: u64 ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::ThreadEnd { thread_contingent, sequence_count })
+    }
+
+    pub unsafe extern "C" fn on_calling_context_enter_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, calling_context: OTF2_CallingContextRef, unwind_distance: u32 ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::CallingContextEnter { calling_context, unwind_distance })
+    }
+
+    pub unsafe extern "C" fn on_calling_context_leave_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, calling_context: OTF2_CallingContextRef ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::CallingContextLeave { calling_context })
+    }
+
+    pub unsafe extern "C" fn on_calling_context_sample_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, calling_context: OTF2_CallingContextRef, unwind_distance: u32, interrupt_generator: OTF2_InterruptGeneratorRef ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::CallingContextSample { calling_context, unwind_distance, interrupt_generator })
+    }
+
+    pub unsafe extern "C" fn on_io_create_handle_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, handle: OTF2_IoHandleRef, mode: OTF2_IoAccessMode, creation_flags: OTF2_IoCreationFlag, status_flags: OTF2_IoStatusFlag ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::IoCreateHandle { handle, mode, creation_flags, status_flags })
+    }
+
+    pub unsafe extern "C" fn on_io_destroy_handle_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, handle: OTF2_IoHandleRef ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::IoDestroyHandle { handle })
+    }
+
+    pub unsafe extern "C" fn on_io_duplicate_handle_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, old_handle: OTF2_IoHandleRef, new_handle: OTF2_IoHandleRef, status_flags: OTF2_IoStatusFlag ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::IoDuplicateHandle { old_handle, new_handle, status_flags })
+    }
+
+    pub unsafe extern "C" fn on_io_seek_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, handle: OTF2_IoHandleRef, offset_request: i64, whence: OTF2_IoSeekOption, offset_result: u64 ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::IoSeek { handle, offset_request, whence, offset_result })
+    }
+
+    pub unsafe extern "C" fn on_io_change_status_flags_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, handle: OTF2_IoHandleRef, status_flags: OTF2_IoStatusFlag ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::IoChangeStatusFlags { handle, status_flags })
+    }
+
+    pub unsafe extern "C" fn on_io_delete_file_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, io_paradigm: OTF2_IoParadigmRef, file: OTF2_IoFileRef ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::IoDeleteFile { io_paradigm, file })
+    }
+
+    pub unsafe extern "C" fn on_io_operation_begin_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, handle: OTF2_IoHandleRef, mode: OTF2_IoOperationMode, operation_flags: OTF2_IoOperationFlag, bytes_request: u64, matching_id: u64 ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::IoOperationBegin { handle, mode, operation_flags, bytes_request, matching_id })
+    }
+
+    pub unsafe extern "C" fn on_io_operation_test_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, handle: OTF2_IoHandleRef, matching_id: u64 ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::IoOperationTest { handle, matching_id })
+    }
+
+    pub unsafe extern "C" fn on_io_operation_issued_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, handle: OTF2_IoHandleRef, matching_id: u64 ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::IoOperationIssued { handle, matching_id })
+    }
+
+    pub unsafe extern "C" fn on_io_operation_complete_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, handle: OTF2_IoHandleRef, bytes_result: u64, matching_id: u64 ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::IoOperationComplete { handle, bytes_result, matching_id })
+    }
+
+    pub unsafe extern "C" fn on_io_operation_cancelled_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, handle: OTF2_IoHandleRef, matching_id: u64 ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::IoOperationCancelled { handle, matching_id })
+    }
+
+    pub unsafe extern "C" fn on_io_acquire_lock_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, handle: OTF2_IoHandleRef, lock_type: OTF2_LockType ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::IoAcquireLock { handle, lock_type })
+    }
+
+    pub unsafe extern "C" fn on_io_release_lock_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, handle: OTF2_IoHandleRef, lock_type: OTF2_LockType ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::IoReleaseLock { handle, lock_type })
+    }
+
+    pub unsafe extern "C" fn on_io_try_lock_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, handle: OTF2_IoHandleRef, lock_type: OTF2_LockType ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::IoTryLock { handle, lock_type })
+    }
+
+    pub unsafe extern "C" fn on_program_begin_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, program_name: OTF2_StringRef, number_of_arguments: u32, program_arguments: *const OTF2_StringRef ) -> OTF2_CallbackCode {
+        let program_arguments = unsafe { std::slice::from_raw_parts(program_arguments, number_of_arguments as usize) }.to_vec();
+        push_event!(queue, location, time, attributes, EventKind::ProgramBegin { program_name, program_arguments })
+    }
+
+    pub unsafe extern "C" fn on_program_end_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, exit_status: i64 ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::ProgramEnd { exit_status })
+    }
+
+    pub unsafe extern "C" fn on_non_blocking_collective_request_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, request_id: u64 ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::NonBlockingCollectiveRequest { request_id })
+    }
+
+    pub unsafe extern "C" fn on_non_blocking_collective_complete_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, collective_op: OTF2_CollectiveOp, communicator: OTF2_CommRef, root: u32, size_sent: u64, size_received: u64, request_id: u64 ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::NonBlockingCollectiveComplete { collective_op, communicator, root, size_sent, size_received, request_id })
+    }
+
+    pub unsafe extern "C" fn on_comm_create_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, communicator: OTF2_CommRef ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::CommCreate { communicator })
+    }
+
+    pub unsafe extern "C" fn on_comm_destroy_event(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, communicator: OTF2_CommRef ) -> OTF2_CallbackCode {
+        push_event!(queue, location, time, attributes, EventKind::CommDestroy { communicator })
     }
 }

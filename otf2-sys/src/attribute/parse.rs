@@ -46,46 +46,24 @@ impl Handle<OTF2_AttributeList> {
     }
 
     fn get_attribute_by_index(&self, index: u32) -> Status<(OTF2_AttributeRef, AttributeValue)> {
-        use OTF2_Type_enum::*;
-        use AttributeValue::*;
         let mut attribute: OTF2_AttributeRef = OTF2_UNDEFINED_ATTRIBUTE;
         let mut kind: OTF2_Type = unsafe { std::mem::zeroed() };
         let mut value: OTF2_AttributeValue = unsafe { std::mem::zeroed() };
-        unsafe { OTF2_AttributeList_GetAttributeByIndex(self.as_ptr(), index, &mut attribute, &mut kind, &mut value) }?;
-        let value = match kind.to_enum() {
-            OTF2_TYPE_NONE => None(()),
-            OTF2_TYPE_UINT8 => Uint8(unsafe { value.0.uint8 }),
-            OTF2_TYPE_UINT16 => Uint16(unsafe { value.0.uint16 }),
-            OTF2_TYPE_UINT32 => Uint32(unsafe { value.0.uint32 }),
-            OTF2_TYPE_UINT64 => Uint64(unsafe { value.0.uint64 }),
-            OTF2_TYPE_INT8 => Int8(unsafe { value.0.int8 }),
-            OTF2_TYPE_INT16 => Int16(unsafe { value.0.int16 }),
-            OTF2_TYPE_INT32 => Int32(unsafe { value.0.int32 }),
-            OTF2_TYPE_INT64 => Int64(unsafe { value.0.int64 }),
-            OTF2_TYPE_FLOAT => Float32(unsafe { value.0.float32 }),
-            OTF2_TYPE_DOUBLE => Float64(unsafe { value.0.float64 }),
-            OTF2_TYPE_STRING => String(unsafe { value.0.stringRef }),
-            OTF2_TYPE_ATTRIBUTE => Attribute(unsafe { value.0.attributeRef }),
-            OTF2_TYPE_LOCATION => Location(unsafe { value.0.locationRef }),
-            OTF2_TYPE_REGION => Region(unsafe { value.0.regionRef }),
-            OTF2_TYPE_GROUP => Group(unsafe { value.0.groupRef }),
-            OTF2_TYPE_METRIC => Metric(unsafe { value.0.metricRef }),
-            OTF2_TYPE_COMM => Comm(unsafe { value.0.commRef }),
-            OTF2_TYPE_PARAMETER => Parameter(unsafe { value.0.parameterRef }),
-            OTF2_TYPE_RMA_WIN => RmaWin(unsafe { value.0.rmaWinRef }),
-            OTF2_TYPE_SOURCE_CODE_LOCATION => SourceCodeLocation(unsafe { value.0.sourceCodeLocationRef }),
-            OTF2_TYPE_CALLING_CONTEXT => CallingContext(unsafe { value.0.callingContextRef }),
-            OTF2_TYPE_INTERRUPT_GENERATOR => InterruptGenerator(unsafe { value.0.interruptGeneratorRef }),
-            OTF2_TYPE_IO_FILE => IoFile(unsafe { value.0.ioFileRef }),
-            OTF2_TYPE_IO_HANDLE => IoHandle(unsafe { value.0.ioHandleRef }),
-            OTF2_TYPE_LOCATION_GROUP => LocationGroup(unsafe { value.0.locationGroupRef }),
-        };
-        Ok((attribute, value))
+        unsafe {
+            OTF2_AttributeList_GetAttributeByIndex(
+                self.as_ptr(),
+                index,
+                &mut attribute,
+                &mut kind,
+                &mut value,
+            )
+        }?;
+        Ok((attribute, AttributeValue::new(kind, value)))
     }
 }
 
 macro_rules! declare_and_impl_enum {
-    ($enum:tt, $($variant:ident => $ty:ty),*) => {
+    ($enum:ident, $($variant:ident => $ty:ty),*) => {
         #[derive(Debug, Clone, Copy)]
         pub enum $enum {
             $(
@@ -94,6 +72,38 @@ macro_rules! declare_and_impl_enum {
         }
 
         impl $enum {
+            pub fn new(kind: OTF2_Type, value: OTF2_AttributeValue) -> Self {
+                use OTF2_Type_enum::*;
+                match kind.to_enum() {
+                    OTF2_TYPE_NONE => Self::None(()),
+                    OTF2_TYPE_UINT8 => Self::Uint8(unsafe { value.0.uint8 }),
+                    OTF2_TYPE_UINT16 => Self::Uint16(unsafe { value.0.uint16 }),
+                    OTF2_TYPE_UINT32 => Self::Uint32(unsafe { value.0.uint32 }),
+                    OTF2_TYPE_UINT64 => Self::Uint64(unsafe { value.0.uint64 }),
+                    OTF2_TYPE_INT8 => Self::Int8(unsafe { value.0.int8 }),
+                    OTF2_TYPE_INT16 => Self::Int16(unsafe { value.0.int16 }),
+                    OTF2_TYPE_INT32 => Self::Int32(unsafe { value.0.int32 }),
+                    OTF2_TYPE_INT64 => Self::Int64(unsafe { value.0.int64 }),
+                    OTF2_TYPE_FLOAT => Self::Float32(unsafe { value.0.float32 }),
+                    OTF2_TYPE_DOUBLE => Self::Float64(unsafe { value.0.float64 }),
+                    OTF2_TYPE_STRING => Self::String(unsafe { value.0.stringRef }),
+                    OTF2_TYPE_ATTRIBUTE => Self::Attribute(unsafe { value.0.attributeRef }),
+                    OTF2_TYPE_LOCATION => Self::Location(unsafe { value.0.locationRef }),
+                    OTF2_TYPE_REGION => Self::Region(unsafe { value.0.regionRef }),
+                    OTF2_TYPE_GROUP => Self::Group(unsafe { value.0.groupRef }),
+                    OTF2_TYPE_METRIC => Self::Metric(unsafe { value.0.metricRef }),
+                    OTF2_TYPE_COMM => Self::Comm(unsafe { value.0.commRef }),
+                    OTF2_TYPE_PARAMETER => Self::Parameter(unsafe { value.0.parameterRef }),
+                    OTF2_TYPE_RMA_WIN => Self::RmaWin(unsafe { value.0.rmaWinRef }),
+                    OTF2_TYPE_SOURCE_CODE_LOCATION => Self::SourceCodeLocation(unsafe { value.0.sourceCodeLocationRef }),
+                    OTF2_TYPE_CALLING_CONTEXT => Self::CallingContext(unsafe { value.0.callingContextRef }),
+                    OTF2_TYPE_INTERRUPT_GENERATOR => Self::InterruptGenerator(unsafe { value.0.interruptGeneratorRef }),
+                    OTF2_TYPE_IO_FILE => Self::IoFile(unsafe { value.0.ioFileRef }),
+                    OTF2_TYPE_IO_HANDLE => Self::IoHandle(unsafe { value.0.ioHandleRef }),
+                    OTF2_TYPE_LOCATION_GROUP => Self::LocationGroup(unsafe { value.0.locationGroupRef }),
+                }
+            }
+
             pub fn type_name(&self) -> &'static str {
                 match self {
                     $(

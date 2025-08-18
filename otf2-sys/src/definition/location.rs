@@ -2,14 +2,7 @@ use crate::internal::*;
 use std::ffi::{CStr, CString};
 
 use super::DefinitionVisitor;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct LocationDef {
-    name: OTF2_StringRef,
-    location_type: OTF2_LocationType,
-    num_events: u64,
-    location_group: OTF2_LocationGroupRef,
-}
+use super::defs::LocationDef;
 
 pub type LocationRegistry = std::collections::BTreeMap<OTF2_LocationRef, LocationDef>;
 

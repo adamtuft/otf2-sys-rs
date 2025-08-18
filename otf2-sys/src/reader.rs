@@ -5,10 +5,11 @@
 
 use crate::internal::*;
 use crate::error::{Status, StatusCode};
-use crate::event::{EventVisitor, GlobalEvtReaderCallbacks};
-use crate::definition::{Definitions, GlobalDefReaderCallbacks, DefinitionVisitor, LocationRegistry};
+use crate::event::{Event, EventKind, EventVisitor, GlobalEvtReaderCallbacks};
+use crate::definition::{GlobalDefReaderCallbacks, DefinitionVisitor, LocationRegistry, DefinitionList};
 use std::ffi::{CString, CStr};
 use std::ops::ControlFlow;
+use std::collections::VecDeque;
 
 use OTF2_ErrorCode::*;
 
@@ -136,14 +137,15 @@ impl<'r> GlobalDefReader<'r> {
         Ok(GlobalDefReader { handle, reader })
     }
 
-    fn read_global_definitions(mut self, def_visitor: &mut impl DefinitionVisitor, callbacks: &mut GlobalDefReaderCallbacks) -> Status<u64> {
+    fn read_global_definitions(mut self, callbacks: &mut GlobalDefReaderCallbacks) -> Status<(u64, DefinitionList)> {
         let mut definitions_read: u64 = 0;
+        let mut definitions = DefinitionList::new();
         unsafe {
             OTF2_Reader_RegisterGlobalDefCallbacks(
                 self.reader.handle.as_mut_ptr(),
                 self.handle.as_mut_ptr(),
                 callbacks.as_mut_ptr(),
-                def_visitor as *const _ as *mut _,
+                &mut definitions as *const _ as *mut _,
             )?;
             OTF2_Reader_ReadAllGlobalDefinitions(
                 self.reader.handle.as_mut_ptr(),
@@ -151,7 +153,7 @@ impl<'r> GlobalDefReader<'r> {
                 &mut definitions_read,
             )?;
         }
-        Ok(definitions_read)
+        Ok((definitions_read, definitions))
     }
 }
 
@@ -182,10 +184,10 @@ pub fn open(anchor_file: CString) -> Status<OpenReader> {
 }
 
 impl OpenReader {
-    pub fn get_global_definitions(mut self, def_visitor: &mut impl DefinitionVisitor, num_definitions: &mut u64) -> Status<ReadyReader> {
+    pub fn get_global_definitions(mut self) -> Status<(u64, DefinitionList, ReadyReader)> {
         let mut callbacks = GlobalDefReaderCallbacks::new()?;
-        *num_definitions = GlobalDefReader::new(&mut self)?.read_global_definitions(def_visitor, &mut callbacks)?;
-        Ok(ReadyReader { handle: Handle::from_raw_unchecked(self.handle.take()), _state: std::marker::PhantomData })
+        let (definitions_read, definitions) = GlobalDefReader::new(&mut self)?.read_global_definitions(&mut callbacks)?;
+        Ok((definitions_read, definitions, ReadyReader { handle: Handle::from_raw_unchecked(self.handle.take()), _state: std::marker::PhantomData }))
     }
 }
 
@@ -193,6 +195,8 @@ impl OpenReader {
 pub struct GlobalEvtReader {
     handle: Handle<OTF2_GlobalEvtReader>,
     reader: ReadyReader,
+    batch_size: u64,
+    event_queue: Box<VecDeque<Event>>,
 }
 
 impl core::ops::Drop for GlobalEvtReader {
@@ -205,50 +209,96 @@ impl core::ops::Drop for GlobalEvtReader {
     }
 }
 
-impl GlobalEvtReader {
-    fn new(mut reader: ReadyReader) -> Self {
-        let handle = Handle::from_raw(unsafe { OTF2_Reader_GetGlobalEvtReader(reader.handle.as_mut_ptr()) })
-            .expect("failed to get global evt reader");
-        GlobalEvtReader { reader, handle }
-    }
+impl std::iter::Iterator for GlobalEvtReader {
+    type Item = Event;
 
-    pub fn read_events(&mut self, visitor: &mut dyn EventVisitor, batch_size: std::num::NonZeroU64) -> Status<u64> {
-        let mut total_events = 0;
-        let callbacks = GlobalEvtReaderCallbacks::new()?;
-        unsafe { OTF2_GlobalEvtReader_SetCallbacks(self.handle.as_mut_ptr(), callbacks.as_ptr(), visitor as *const _ as *mut _) }?;
-        loop {
-            match self.read_next_event_batch(batch_size)? {
-                ControlFlow::Continue(events_read) => {
-                    total_events += events_read;
-                }
-                ControlFlow::Break(events_read) => {
-                    total_events += events_read;
-                    break
-                }
-            }
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.event_queue.is_empty() {
+            let _ = self.read_next_event_batch();
         }
-        Ok(total_events)
-    }
-
-    fn read_next_event_batch(&mut self, batch_size: std::num::NonZeroU64) -> Status<ControlFlow<u64, u64>> {
-        let mut events_read = 0;
-        unsafe { OTF2_GlobalEvtReader_ReadEvents(self.handle.as_mut_ptr(), batch_size.get(), &mut events_read) }?;
-        if events_read < batch_size.get() {
-            Ok(ControlFlow::Break(events_read))
-        } else {
-            Ok(ControlFlow::Continue(events_read))
-        }
+        self.event_queue.pop_front()
     }
 }
+
+impl GlobalEvtReader {
+    fn new(mut reader: ReadyReader, batch_size: u64) -> Status<Self> {
+        let handle = Handle::from_raw(unsafe { OTF2_Reader_GetGlobalEvtReader(reader.handle.as_mut_ptr()) })
+            .expect("failed to get global evt reader");
+        let mut global_evt_reader = GlobalEvtReader { reader, handle, batch_size, event_queue: Box::new(VecDeque::with_capacity(batch_size as usize)) };
+        global_evt_reader.set_callbacks()?;
+        Ok(global_evt_reader)
+    }
+
+    fn set_callbacks(&mut self) -> Status<()> {
+        let callbacks = GlobalEvtReaderCallbacks::new()?;
+        unsafe { OTF2_GlobalEvtReader_SetCallbacks(self.handle.as_mut_ptr(), callbacks.as_ptr(), self.event_queue.as_mut() as *const _ as *mut _) }?;
+        Ok(())
+    }
+
+    fn read_next_event_batch(&mut self) -> Status<()> {
+        let mut events_read = 0;
+        unsafe { OTF2_GlobalEvtReader_ReadEvents(self.handle.as_mut_ptr(), self.batch_size, &mut events_read) }?;
+        Ok(())
+    }
+
+    // pub fn read_events(&mut self, visitor: &mut dyn EventVisitor, batch_size: std::num::NonZeroU64) -> Status<u64> {
+    //     let mut total_events = 0;
+    //     let callbacks = GlobalEvtReaderCallbacks::new()?;
+    //     unsafe { OTF2_GlobalEvtReader_SetCallbacks(self.handle.as_mut_ptr(), callbacks.as_ptr(), visitor as *const _ as *mut _) }?;
+    //     loop {
+    //         match self.read_next_event_batch(batch_size)? {
+    //             ControlFlow::Continue(events_read) => {
+    //                 total_events += events_read;
+    //             }
+    //             ControlFlow::Break(events_read) => {
+    //                 total_events += events_read;
+    //                 break
+    //             }
+    //         }
+    //     }
+    //     Ok(total_events)
+    // }
+
+    // fn read_next_event_batch(&mut self, batch_size: std::num::NonZeroU64) -> Status<ControlFlow<u64, u64>> {
+    //     let mut events_read = 0;
+    //     unsafe { OTF2_GlobalEvtReader_ReadEvents(self.handle.as_mut_ptr(), batch_size.get(), &mut events_read) }?;
+    //     if events_read < batch_size.get() {
+    //         Ok(ControlFlow::Break(events_read))
+    //     } else {
+    //         Ok(ControlFlow::Continue(events_read))
+    //     }
+    // }
+}
+
+// #[derive(Debug)]
+// struct GlobalEvtIterator {
+//     global_evt_reader: GlobalEvtReader,
+//     batch_size: u64,
+//     event_buffer: Vec<Option<Event>>,
+// }
+
+// impl GlobalEvtIterator {
+//     fn new(global_evt_reader: GlobalEvtReader, batch_size: u64) -> Self {
+//         Self { global_evt_reader, batch_size, event_buffer: vec![None; batch_size as usize] }
+//     }
+// }
+
+// impl std::iter::Iterator for GlobalEvtIterator {
+//     type Item = Event;
+
+//     fn next(&mut self) -> Option<Self::Item> {
+        
+//     }
+// }
 
 impl ReadyReader {
 
     /// Consumes the `Reader` to produce a `GlobalEvtReader` for reading all events from the trace
-    pub fn into_global_evt_reader(mut self, locations: &[OTF2_LocationRef]) -> Status<GlobalEvtReader> {
+    pub fn into_global_evt_reader(mut self, locations: &[OTF2_LocationRef], batch_size: u64) -> Status<GlobalEvtReader> {
         self.select_locations(locations)?;
         LocalDefFiles::open(&mut self)?.read_local_definitions(locations)?;
         LocalEvtFiles::open(&mut self)?.prepare_evt_files(locations);
-        Ok(GlobalEvtReader::new(self))
+        GlobalEvtReader::new(self, batch_size)
     }
 
     fn select_locations(&mut self, locations: &[OTF2_LocationRef]) -> Status<()> {
@@ -265,6 +315,7 @@ mod test {
 
     use super::*;
 
+    use crate::definition::Definition;
     use crate::event::PrintingEventVisitor;
 
     #[test]
@@ -272,14 +323,22 @@ mod test {
         let anchor_file = CString::new("/home/adam/Dropbox/Durham-RA/experiments/bots-strassen/trace/serial_512.15132/serial_512.15132.otf2").expect("Failed to create CString");
         let reader = open(anchor_file);
         dbg!(&reader);
-        let mut reader = reader.unwrap();
-        let mut locations = LocationRegistry::new();
-        let mut num_definitions = 0;
-        let mut reader = reader.get_global_definitions(&mut locations, &mut num_definitions).expect("Failed to get global definitions");
-        let location_refs = locations.keys().cloned().collect::<Vec<_>>();
-        let mut global_evt_reader = reader.into_global_evt_reader(&location_refs).expect("Failed to get global event reader");
-        let mut evt_printer = PrintingEventVisitor;
-        global_evt_reader.read_events(&mut evt_printer, std::num::NonZeroU64::new(1000).unwrap()).expect("Failed to read events");
+        let reader = reader.unwrap();
+        let (_, definitions, reader) = reader.get_global_definitions().expect("Failed to get global definitions");
+        dbg!(&definitions);
+        let location_refs = definitions.iter()
+            .filter_map(|def| match def {
+                Definition::Location { defn, value: _ } => Some(*defn),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let global_evt_reader = reader.into_global_evt_reader(&location_refs, 1000).expect("Failed to get global event reader");
         dbg!(&global_evt_reader);
+        let mut num_events = 0;
+        for event in global_evt_reader {
+            dbg!(event);
+            num_events += 1;
+        }
+        dbg!(num_events);
     }
 }

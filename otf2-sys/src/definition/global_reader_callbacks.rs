@@ -4,13 +4,12 @@ use crate::error::Status;
 use crate::internal::*;
 use std::ffi::CStr;
 
-use super::visitor::DefinitionVisitor;
+use super::defs::{self, Definition};
 
 /// Safe wrapper around OTF2_GlobalDefReaderCallbacks
 /// 
 /// Registers callbacks for reading global definitions in OTF2 traces. These callbacks expect a
-/// vector of mutable references to `DefinitionVisitor` trait objects, each of which will be
-/// notified of the definitions as they are read from the trace.
+/// mutable `DefinitionList` which will store the data for all definitions.
 #[derive(Debug, derive_more::Deref, derive_more::DerefMut)]
 pub struct GlobalDefReaderCallbacks(Handle<OTF2_GlobalDefReaderCallbacks_struct>);
 
@@ -144,12 +143,24 @@ impl GlobalDefReaderCallbacks {
     }
 }
 
+#[derive(Debug, derive_more::Deref, derive_more::DerefMut)]
+pub struct DefinitionList(Vec<Definition>);
+
+impl DefinitionList {
+    pub fn new() -> Self {
+        Self(Vec::new())
+    }
+}
+
 mod visitor_callbacks {
     use super::*;
+    use super::defs::*;
+    use crate::attribute::AttributeValue;
 
     #[inline]
-    fn as_visitors<'a, 'b>(data: *mut ::std::os::raw::c_void) -> &'a mut Vec<&'b mut dyn DefinitionVisitor> {
-        unsafe { &mut *(data as *mut Vec<&mut dyn DefinitionVisitor>) }
+    fn as_def_list<'a>(data: *mut ::std::os::raw::c_void) -> &'a mut DefinitionList {
+        assert!(!data.is_null(), "callback received a null user data pointer");
+        unsafe { &mut *(data as *mut DefinitionList) }
     }
 
     pub extern "C" fn read_string_def(
@@ -158,12 +169,10 @@ mod visitor_callbacks {
         value: *const ::std::os::raw::c_char,
     ) -> OTF2_CallbackCode_enum {
         let value = unsafe { CStr::from_ptr(value) };
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_string(defn, value);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
+        as_def_list(user_data).push(Definition::String {
+            defn,
+            value: value.to_string_lossy().into_owned(),
+        });
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
 
@@ -175,22 +184,21 @@ mod visitor_callbacks {
         num_events: u64,
         location_group: OTF2_LocationGroupRef,
     ) -> OTF2_CallbackCode_enum {
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_location(defn, name, location_type, num_events, location_group);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
+        as_def_list(user_data).push(Definition::Location {
+            defn,
+            value: LocationDef {
+                name,
+                location_type,
+                num_events,
+                location_group,
+            },
+        });
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
 
-    pub extern "C" fn read_unknown_def(user_data: *mut ::std::os::raw::c_void) -> OTF2_CallbackCode_enum {
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_unknown();
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
+    pub extern "C" fn read_unknown_def(
+        _user_data: *mut ::std::os::raw::c_void,
+    ) -> OTF2_CallbackCode_enum {
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
 
@@ -201,17 +209,14 @@ mod visitor_callbacks {
         trace_length: u64,
         realtime_timestamp: u64,
     ) -> OTF2_CallbackCode_enum {
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_clock_properties(
+        as_def_list(user_data).push(Definition::ClockProperties {
+            value: ClockPropertiesDef {
                 timer_resolution,
                 global_offset,
                 trace_length,
                 realtime_timestamp,
-            );
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
+            },
+        });
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
 
@@ -221,12 +226,14 @@ mod visitor_callbacks {
         name: OTF2_StringRef,
         paradigm_class: OTF2_ParadigmClass,
     ) -> OTF2_CallbackCode_enum {
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_paradigm(paradigm, name, paradigm_class);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
+        as_def_list(user_data).push(Definition::Paradigm {
+            defn: paradigm,
+            value: ParadigmDef {
+                paradigm,
+                name,
+                paradigm_class,
+            },
+        });
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
 
@@ -237,12 +244,14 @@ mod visitor_callbacks {
         type_: OTF2_Type,
         value: OTF2_AttributeValue,
     ) -> OTF2_CallbackCode_enum {
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_paradigm_property(paradigm, property, type_, value);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
+        as_def_list(user_data).push(Definition::ParadigmProperty {
+            paradigm,
+            value: ParadigmPropertyDef {
+                paradigm,
+                property,
+                value: AttributeValue::new(type_, value),
+            },
+        });
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
 
@@ -260,23 +269,25 @@ mod visitor_callbacks {
     ) -> OTF2_CallbackCode_enum {
         let properties_slice =
             unsafe { std::slice::from_raw_parts(properties, number_of_properties as usize) };
-        let types_slice = unsafe { std::slice::from_raw_parts(types, number_of_properties as usize) };
-        let values_slice = unsafe { std::slice::from_raw_parts(values, number_of_properties as usize) };
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_io_paradigm(
-                defn,
+        let types_slice =
+            unsafe { std::slice::from_raw_parts(types, number_of_properties as usize) };
+        let values_slice =
+            unsafe { std::slice::from_raw_parts(values, number_of_properties as usize) };
+        as_def_list(user_data).push(Definition::IoParadigm {
+            defn,
+            value: IoParadigmDef {
                 identification,
                 name,
                 io_paradigm_class,
                 io_paradigm_flags,
-                properties_slice,
-                types_slice,
-                values_slice,
-            );
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
+                properties: properties_slice.to_vec(),
+                values: types_slice
+                    .iter()
+                    .zip(values_slice.iter())
+                    .map(|(&kind, &value)| AttributeValue::new(kind, value))
+                    .collect(),
+            },
+        });
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
 
@@ -285,14 +296,16 @@ mod visitor_callbacks {
         defn: OTF2_AttributeRef,
         name: OTF2_StringRef,
         description: OTF2_StringRef,
-        type_: OTF2_Type,
+        kind: OTF2_Type,
     ) -> OTF2_CallbackCode_enum {
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_attribute(defn, name, description, type_);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
+        as_def_list(user_data).push(Definition::Attribute {
+            defn,
+            value: AttributeDef {
+                name,
+                description,
+                kind,
+            },
+        });
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
 
@@ -308,12 +321,14 @@ mod visitor_callbacks {
         } else {
             Some(parent)
         };
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_system_tree_node(defn, name, class_name, parent_opt);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
+        as_def_list(user_data).push(Definition::SystemTreeNode {
+            defn,
+            value: SystemTreeNodeDef {
+                name,
+                class_name,
+                parent: parent_opt,
+            },
+        });
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
 
@@ -324,12 +339,14 @@ mod visitor_callbacks {
         type_: OTF2_Type,
         value: OTF2_AttributeValue,
     ) -> OTF2_CallbackCode_enum {
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_system_tree_node_property(system_tree_node, name, type_, value);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
+        as_def_list(user_data).push(Definition::SystemTreeNodeProperty {
+            system_tree_node,
+            value: SystemTreeNodePropertyDef {
+                system_tree_node,
+                name,
+                value: AttributeValue::new(type_, value),
+            },
+        });
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
 
@@ -338,12 +355,13 @@ mod visitor_callbacks {
         system_tree_node: OTF2_SystemTreeNodeRef,
         system_tree_domain: OTF2_SystemTreeDomain,
     ) -> OTF2_CallbackCode_enum {
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_system_tree_node_domain(system_tree_node, system_tree_domain);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
+        as_def_list(user_data).push(Definition::SystemTreeNodeDomain {
+            system_tree_node,
+            value: SystemTreeNodeDomainDef {
+                system_tree_node,
+                system_tree_domain,
+            },
+        });
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
 
@@ -355,23 +373,21 @@ mod visitor_callbacks {
         system_tree_parent: OTF2_SystemTreeNodeRef,
         creating_location_group: OTF2_LocationGroupRef,
     ) -> OTF2_CallbackCode_enum {
-        let creating_location_group_opt = if creating_location_group == OTF2_UNDEFINED_LOCATION_GROUP {
-            None
-        } else {
-            Some(creating_location_group)
-        };
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_location_group(
-                defn,
+        let creating_location_group_opt =
+            if creating_location_group == OTF2_UNDEFINED_LOCATION_GROUP {
+                None
+            } else {
+                Some(creating_location_group)
+            };
+        as_def_list(user_data).push(Definition::LocationGroup {
+            defn,
+            value: LocationGroupDef {
                 name,
                 location_group_type,
                 system_tree_parent,
-                creating_location_group_opt,
-            );
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
+                creating_location_group: creating_location_group_opt,
+            },
+        });
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
 
@@ -382,12 +398,14 @@ mod visitor_callbacks {
         type_: OTF2_Type,
         value: OTF2_AttributeValue,
     ) -> OTF2_CallbackCode_enum {
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_location_group_property(location_group, name, type_, value);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
+        as_def_list(user_data).push(Definition::LocationGroupProperty {
+            location_group,
+            value: LocationGroupPropertyDef {
+                location_group,
+                name,
+                value: AttributeValue::new(type_, value),
+            },
+        });
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
 
@@ -398,12 +416,14 @@ mod visitor_callbacks {
         type_: OTF2_Type,
         value: OTF2_AttributeValue,
     ) -> OTF2_CallbackCode_enum {
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_location_property(location, name, type_, value);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
+        as_def_list(user_data).push(Definition::LocationProperty {
+            location,
+            value: LocationPropertyDef {
+                location,
+                name,
+                value: AttributeValue::new(type_, value),
+            },
+        });
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
 
@@ -420,9 +440,9 @@ mod visitor_callbacks {
         begin_line_number: u32,
         end_line_number: u32,
     ) -> OTF2_CallbackCode_enum {
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_region(
-                defn,
+        as_def_list(user_data).push(Definition::Region {
+            defn,
+            value: RegionDef {
                 name,
                 canonical_name,
                 description,
@@ -432,11 +452,8 @@ mod visitor_callbacks {
                 source_file,
                 begin_line_number,
                 end_line_number,
-            );
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
+            },
+        });
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
 
@@ -448,13 +465,15 @@ mod visitor_callbacks {
         entered_region: OTF2_RegionRef,
         left_region: OTF2_RegionRef,
     ) -> OTF2_CallbackCode_enum {
-        for visitor in as_visitors(user_data) {
-            let code =
-                visitor.visit_callsite(defn, source_file, line_number, entered_region, left_region);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
+        as_def_list(user_data).push(Definition::Callsite {
+            defn,
+            value: CallsiteDef {
+                source_file,
+                line_number,
+                entered_region,
+                left_region,
+            },
+        });
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
 
@@ -469,12 +488,13 @@ mod visitor_callbacks {
         } else {
             Some(parent)
         };
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_callpath(defn, parent_opt, region);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
+        as_def_list(user_data).push(Definition::Callpath {
+            defn,
+            value: CallpathDef {
+                parent: parent_opt,
+                region,
+            },
+        });
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
 
@@ -485,12 +505,14 @@ mod visitor_callbacks {
         type_: OTF2_Type,
         value: OTF2_AttributeValue,
     ) -> OTF2_CallbackCode_enum {
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_callpath_parameter(callpath, parameter, type_, value);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
+        as_def_list(user_data).push(Definition::CallpathParameter {
+            callpath,
+            value: CallpathParameterDef {
+                callpath,
+                parameter,
+                value: AttributeValue::new(type_, value),
+            },
+        });
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
 
@@ -500,12 +522,10 @@ mod visitor_callbacks {
         file: OTF2_StringRef,
         line_number: u32,
     ) -> OTF2_CallbackCode_enum {
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_source_code_location(defn, file, line_number);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
+        as_def_list(user_data).push(Definition::SourceCodeLocation {
+            defn,
+            value: SourceCodeLocationDef { file, line_number },
+        });
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
 
@@ -521,12 +541,14 @@ mod visitor_callbacks {
         } else {
             Some(parent)
         };
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_calling_context(defn, region, source_code_location, parent_opt);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
+        as_def_list(user_data).push(Definition::CallingContext {
+            defn,
+            value: CallingContextDef {
+                region,
+                source_code_location,
+                parent: parent_opt,
+            },
+        });
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
 
@@ -537,12 +559,14 @@ mod visitor_callbacks {
         type_: OTF2_Type,
         value: OTF2_AttributeValue,
     ) -> OTF2_CallbackCode_enum {
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_calling_context_property(calling_context, name, type_, value);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
+        as_def_list(user_data).push(Definition::CallingContextProperty {
+            calling_context,
+            value: CallingContextPropertyDef {
+                calling_context,
+                name,
+                value: AttributeValue::new(type_, value),
+            },
+        });
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
 
@@ -556,14 +580,18 @@ mod visitor_callbacks {
         number_of_members: u32,
         members: *const u64,
     ) -> OTF2_CallbackCode_enum {
-        let members_slice = unsafe { std::slice::from_raw_parts(members, number_of_members as usize) };
-        for visitor in as_visitors(user_data) {
-            let code =
-                visitor.visit_group(defn, name, group_type, paradigm, group_flags, members_slice);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
+        let members_slice =
+            unsafe { std::slice::from_raw_parts(members, number_of_members as usize) };
+        as_def_list(user_data).push(Definition::Group {
+            defn,
+            value: GroupDef {
+                name,
+                group_type,
+                paradigm,
+                group_flags,
+                members: members_slice.to_vec(),
+            },
+        });
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
 
@@ -579,9 +607,9 @@ mod visitor_callbacks {
         exponent: i64,
         unit: OTF2_StringRef,
     ) -> OTF2_CallbackCode_enum {
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_metric_member(
-                defn,
+        as_def_list(user_data).push(Definition::MetricMember {
+            defn,
+            value: MetricMemberDef {
                 name,
                 description,
                 metric_type,
@@ -590,11 +618,8 @@ mod visitor_callbacks {
                 base,
                 exponent,
                 unit,
-            );
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
+            },
+        });
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
 
@@ -608,17 +633,14 @@ mod visitor_callbacks {
     ) -> OTF2_CallbackCode_enum {
         let metric_members_slice =
             unsafe { std::slice::from_raw_parts(metric_members, number_of_metrics as usize) };
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_metric_class(
-                defn,
-                metric_members_slice,
+        as_def_list(user_data).push(Definition::MetricClass {
+            defn,
+            value: MetricClassDef {
+                metric_members: metric_members_slice.to_vec(),
                 metric_occurrence,
                 recorder_kind,
-            );
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
+            },
+        });
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
 
@@ -630,12 +652,15 @@ mod visitor_callbacks {
         metric_scope: OTF2_MetricScope,
         scope: u64,
     ) -> OTF2_CallbackCode_enum {
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_metric_instance(defn, metric_class, recorder, metric_scope, scope);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
+        as_def_list(user_data).push(Definition::MetricInstance {
+            defn,
+            value: MetricInstanceDef {
+                metric_class,
+                recorder,
+                metric_scope,
+                scope,
+            },
+        });
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
 
@@ -644,12 +669,13 @@ mod visitor_callbacks {
         metric_class: OTF2_MetricRef,
         recorder: OTF2_LocationRef,
     ) -> OTF2_CallbackCode_enum {
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_metric_class_recorder(metric_class, recorder);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
+        as_def_list(user_data).push(Definition::MetricClassRecorder {
+            metric_class,
+            value: MetricClassRecorderDef {
+                metric_class,
+                recorder,
+            },
+        });
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
 
@@ -666,12 +692,15 @@ mod visitor_callbacks {
         } else {
             Some(parent)
         };
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_comm(defn, name, group, parent_opt);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
+        as_def_list(user_data).push(Definition::Comm {
+            defn,
+            value: CommDef {
+                name,
+                group,
+                parent: parent_opt,
+                flags,
+            },
+        });
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
 
@@ -689,13 +718,16 @@ mod visitor_callbacks {
         } else {
             Some(common_communicator)
         };
-        for visitor in as_visitors(user_data) {
-            let code =
-                visitor.visit_inter_comm(defn, name, group_a, group_b, common_communicator_opt, flags);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
+        as_def_list(user_data).push(Definition::InterComm {
+            defn,
+            value: InterCommDef {
+                name,
+                group_a,
+                group_b,
+                common_communicator: common_communicator_opt,
+                flags,
+            },
+        });
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
 
@@ -705,12 +737,13 @@ mod visitor_callbacks {
         name: OTF2_StringRef,
         parameter_type: OTF2_ParameterType,
     ) -> OTF2_CallbackCode_enum {
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_parameter(defn, name, parameter_type);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
+        as_def_list(user_data).push(Definition::Parameter {
+            defn,
+            value: ParameterDef {
+                name,
+                parameter_type,
+            },
+        });
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
 
@@ -721,12 +754,10 @@ mod visitor_callbacks {
         comm: OTF2_CommRef,
         flags: OTF2_RmaWinFlag,
     ) -> OTF2_CallbackCode_enum {
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_rma_win(defn, name, comm);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
+        as_def_list(user_data).push(Definition::RmaWin {
+            defn,
+            value: RmaWinDef { name, comm, flags },
+        });
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
 
@@ -737,12 +768,14 @@ mod visitor_callbacks {
         size: u32,
         periodic: OTF2_CartPeriodicity,
     ) -> OTF2_CallbackCode_enum {
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_cart_dimension(defn, name, size, periodic);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
+        as_def_list(user_data).push(Definition::CartDimension {
+            defn,
+            value: CartDimensionDef {
+                name,
+                size,
+                periodic,
+            },
+        });
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
 
@@ -756,12 +789,14 @@ mod visitor_callbacks {
     ) -> OTF2_CallbackCode_enum {
         let dimensions_slice =
             unsafe { std::slice::from_raw_parts(dimensions, number_of_dimensions as usize) };
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_cart_topology(defn, name, communicator, dimensions_slice);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
+        as_def_list(user_data).push(Definition::CartTopology {
+            defn,
+            value: CartTopologyDef {
+                name,
+                communicator,
+                dimensions: dimensions_slice.to_vec(),
+            },
+        });
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
 
@@ -774,12 +809,14 @@ mod visitor_callbacks {
     ) -> OTF2_CallbackCode_enum {
         let coordinates_slice =
             unsafe { std::slice::from_raw_parts(coordinates, number_of_coordinates as usize) };
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_cart_coordinate(topology, rank, coordinates_slice);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
+        as_def_list(user_data).push(Definition::CartCoordinate {
+            topology,
+            value: CartCoordinateDef {
+                topology,
+                rank,
+                coordinates: coordinates_slice.to_vec(),
+            },
+        });
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
 
@@ -792,19 +829,16 @@ mod visitor_callbacks {
         exponent: i64,
         period: u64,
     ) -> OTF2_CallbackCode_enum {
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_interrupt_generator(
-                defn,
+        as_def_list(user_data).push(Definition::InterruptGenerator {
+            defn,
+            value: InterruptGeneratorDef {
                 name,
                 interrupt_generator_mode,
                 base,
                 exponent,
                 period,
-            );
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
+            },
+        });
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
 
@@ -815,12 +849,14 @@ mod visitor_callbacks {
         type_: OTF2_Type,
         value: OTF2_AttributeValue,
     ) -> OTF2_CallbackCode_enum {
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_io_file_property(io_file, name, type_, value);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
+        as_def_list(user_data).push(Definition::IoFileProperty {
+            io_file,
+            value: IoFilePropertyDef {
+                io_file,
+                name,
+                value: AttributeValue::new(type_, value),
+            },
+        });
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
 
@@ -830,12 +866,10 @@ mod visitor_callbacks {
         name: OTF2_StringRef,
         scope: OTF2_SystemTreeNodeRef,
     ) -> OTF2_CallbackCode_enum {
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_io_regular_file(defn, name, scope);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
+        as_def_list(user_data).push(Definition::IoRegularFile {
+            defn,
+            value: IoRegularFileDef { name, scope },
+        });
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
 
@@ -845,12 +879,10 @@ mod visitor_callbacks {
         name: OTF2_StringRef,
         scope: OTF2_SystemTreeNodeRef,
     ) -> OTF2_CallbackCode_enum {
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_io_directory(defn, name, scope);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
+        as_def_list(user_data).push(Definition::IoDirectory {
+            defn,
+            value: IoDirectoryDef { name, scope },
+        });
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
 
@@ -874,20 +906,17 @@ mod visitor_callbacks {
         } else {
             Some(parent)
         };
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_io_handle(
-                defn,
+        as_def_list(user_data).push(Definition::IoHandle {
+            defn,
+            value: IoHandleDef {
                 name,
                 file,
                 io_paradigm,
                 io_handle_flags,
-                comm_opt,
-                parent_opt,
-            );
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
+                comm: comm_opt,
+                parent: parent_opt,
+            },
+        });
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
 
@@ -897,12 +926,14 @@ mod visitor_callbacks {
         mode: OTF2_IoAccessMode,
         status_flags: OTF2_IoStatusFlag,
     ) -> OTF2_CallbackCode_enum {
-        for visitor in as_visitors(user_data) {
-            let code = visitor.visit_io_pre_created_handle_state(io_handle, mode, status_flags);
-            if code != OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS {
-                return code;
-            }
-        }
+        as_def_list(user_data).push(Definition::IoPreCreatedHandleState {
+            io_handle,
+            value: IoPreCreatedHandleStateDef {
+                io_handle,
+                mode,
+                status_flags,
+            },
+        });
         OTF2_CallbackCode::OTF2_CALLBACK_SUCCESS
     }
 }
