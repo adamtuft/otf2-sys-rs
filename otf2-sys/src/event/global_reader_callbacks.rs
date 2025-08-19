@@ -154,7 +154,7 @@ mod event_queue_callbacks {
     }
 
     pub unsafe extern "C" fn unknown(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList ) -> OTF2_CallbackCode {
-        push_event!(queue, location, time, attributes, EventKind::Unknown)
+        push_event!(queue, location, time, attributes, EventKind::Unknown{})
     }
 
     pub unsafe extern "C" fn buffer_flush(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, stop_time: OTF2_TimeStamp ) -> OTF2_CallbackCode {
@@ -206,7 +206,7 @@ mod event_queue_callbacks {
     }
 
     pub unsafe extern "C" fn mpi_collective_begin(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList ) -> OTF2_CallbackCode {
-        push_event!(queue, location, time, attributes, EventKind::MpiCollectiveBegin)
+        push_event!(queue, location, time, attributes, EventKind::MpiCollectiveBegin{})
     }
 
     pub unsafe extern "C" fn mpi_collective_end(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, collective_op: OTF2_CollectiveOp, communicator: OTF2_CommRef, root: u32, size_sent: u64, size_received: u64 ) -> OTF2_CallbackCode {
@@ -218,7 +218,7 @@ mod event_queue_callbacks {
     }
 
     pub unsafe extern "C" fn omp_join(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList ) -> OTF2_CallbackCode {
-        push_event!(queue, location, time, attributes, EventKind::OmpJoin)
+        push_event!(queue, location, time, attributes, EventKind::OmpJoin{})
     }
 
     pub unsafe extern "C" fn omp_acquire_lock(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, lock_id: u32, acquisition_order: u32 ) -> OTF2_CallbackCode {
@@ -268,7 +268,7 @@ mod event_queue_callbacks {
     }
 
     pub unsafe extern "C" fn rma_collective_begin(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList ) -> OTF2_CallbackCode {
-        push_event!(queue, location, time, attributes, EventKind::RmaCollectiveBegin)
+        push_event!(queue, location, time, attributes, EventKind::RmaCollectiveBegin{})
     }
 
     pub unsafe extern "C" fn rma_collective_end(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, collective_op: OTF2_CollectiveOp, sync_level: OTF2_RmaSyncLevel, win: OTF2_RmaWinRef, root: u32, bytes_sent: u64, bytes_received: u64 ) -> OTF2_CallbackCode {

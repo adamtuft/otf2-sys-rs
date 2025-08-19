@@ -272,15 +272,9 @@ mod test {
         let mut trace = open(anchor_file).unwrap();
         for event in trace.iter_events(1000).expect("Failed to get event iter") {
             match event {
-                Ok(event) => { dbg!(event); },
-                Err(err) => { dbg!(err); break; },
+                Ok(event) => { println!("{event}"); },
+                Err(err) => { eprintln!("Error reading event: {err}"); break; },
             }
         }
-        let event_reader = trace.get_event_reader(1000).expect("Failed to get global event reader");
-        let num_events = count_events(event_reader.into_event_iter().expect("Failed to get events"));
-        dbg!(num_events);
-        let event_reader = trace.get_event_reader(1000).expect("Failed to get global event reader");
-        let num_events = count_events(event_reader.into_event_iter().expect("Failed to get events"));
-        dbg!(num_events);
     }
 }
