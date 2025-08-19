@@ -1,7 +1,5 @@
 mod global_reader_callbacks;
-mod print_events;
-mod visitor;
+mod event_struct;
 
-pub use visitor::{Event, EventKind, EventVisitor};
-pub use print_events::PrintingEventVisitor;
+pub use event_struct::{Event, EventKind};
 pub use global_reader_callbacks::GlobalEvtReaderCallbacks;
