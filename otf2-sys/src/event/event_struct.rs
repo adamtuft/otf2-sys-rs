@@ -5,7 +5,7 @@ use crate::internal::*;
 use crate::attribute::AttributeValue;
 use std::ffi::CStr;
 
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct Event {
     pub kind: EventKind,
     pub data: EventData,
@@ -22,6 +22,14 @@ impl Event {
             },
         }
     }
+
+    pub fn as_json(&self) -> String {
+        serde_json::to_string(self).unwrap_or_else(|_| "Error serializing event".to_string())
+    }
+
+    pub fn as_json_pretty(&self) -> String {
+        serde_json::to_string_pretty(self).unwrap_or_else(|_| "Error serializing event".to_string())
+    }
 }
 
 impl std::fmt::Display for Event {
@@ -30,7 +38,7 @@ impl std::fmt::Display for Event {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct EventData {
     pub location: OTF2_LocationRef,
     pub time: OTF2_TimeStamp,
@@ -40,7 +48,7 @@ pub struct EventData {
 macro_rules! declare_named_enum {
     (
         $(#[$enum_attr:meta])*
-        $vis:vis $enum_name:ident {
+        $vis:vis enum $enum_name:ident {
             $(
                 $(#[$variant_attr:meta])*
                 $variant_name:ident { $($field:ident: $ty:ty),* }
@@ -70,7 +78,8 @@ macro_rules! declare_named_enum {
 
 declare_named_enum!(
     #[derive(Debug)]
-    pub EventKind {
+    #[derive(serde::Serialize, serde::Deserialize)]
+    pub enum EventKind {
         Unknown{},
         BufferFlush {stop_time: OTF2_TimeStamp},
         MeasurementOnOff {measurement_mode: OTF2_MeasurementMode},
@@ -93,7 +102,7 @@ declare_named_enum!(
         OmpTaskCreate {task_id: u64},
         OmpTaskSwitch {task_id: u64},
         OmpTaskComplete {task_id: u64},
-        Metric {metric: OTF2_MetricRef, type_ids: Vec<OTF2_Type>, metric_values: Vec<OTF2_MetricValue>},
+        Metric {metric: OTF2_MetricRef, values: Vec<MetricValue>},
         ParameterString {parameter: OTF2_ParameterRef, string: OTF2_StringRef},
         ParameterInt {parameter: OTF2_ParameterRef, value: i64},
         ParameterUnsignedInt {parameter: OTF2_ParameterRef, value: u64},

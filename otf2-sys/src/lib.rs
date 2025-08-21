@@ -9,8 +9,10 @@ mod error;
 mod event;
 mod handle;
 mod reader;
+mod macros;
 
 mod internal {
     pub use super::c::*;
     pub use super::handle::*;
+    pub(crate) use super::macros::*;
 }

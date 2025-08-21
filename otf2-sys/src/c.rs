@@ -186,3 +186,12 @@ impl OTF2_AttributeValue {
     }
 }
 
+crate::internal::declare_enum_union_wrapper!(
+    #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+    pub enum MetricValue(union: OTF2_MetricValue) {
+        OTF2_TYPE_UINT64 => Uint64(u64) from unsigned_int,
+        OTF2_TYPE_INT64 => Int64(i64) from signed_int,
+        OTF2_TYPE_DOUBLE => Float64(f64) from floating_point,
+        _ => None(()),
+    }
+);

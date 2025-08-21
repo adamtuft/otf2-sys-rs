@@ -272,7 +272,7 @@ mod test {
         let mut trace = open(anchor_file).unwrap();
         for event in trace.iter_events(1000).expect("Failed to get event iter") {
             match event {
-                Ok(event) => { println!("{event}"); },
+                Ok(event) => { println!("Event: {}", event.as_json()); },
                 Err(err) => { eprintln!("Error reading event: {err}"); break; },
             }
         }

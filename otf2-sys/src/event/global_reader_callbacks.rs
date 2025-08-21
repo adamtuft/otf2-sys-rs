@@ -242,9 +242,10 @@ mod event_queue_callbacks {
     }
 
     pub unsafe extern "C" fn metric(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, metric: OTF2_MetricRef, number_of_metrics: u8, type_ids: *const OTF2_Type, metric_values: *const OTF2_MetricValue ) -> OTF2_CallbackCode {
-        let type_ids = unsafe { std::slice::from_raw_parts(type_ids, number_of_metrics as usize) }.to_vec();
-        let metric_values = unsafe { std::slice::from_raw_parts(metric_values, number_of_metrics as usize) }.to_vec();
-        push_event!(queue, location, time, attributes, EventKind::Metric { metric, type_ids, metric_values })
+        let types = unsafe { std::slice::from_raw_parts(type_ids, number_of_metrics as usize) }.to_vec();
+        let raw_values = unsafe { std::slice::from_raw_parts(metric_values, number_of_metrics as usize) }.to_vec();
+        let values = types.into_iter().zip(raw_values).map(|(t, v)| MetricValue::new(t, v)).collect();
+        push_event!(queue, location, time, attributes, EventKind::Metric { metric, values })
     }
 
     pub unsafe extern "C" fn parameter_string(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, parameter: OTF2_ParameterRef, string: OTF2_StringRef ) -> OTF2_CallbackCode {
