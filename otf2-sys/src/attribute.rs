@@ -63,7 +63,8 @@ impl Handle<OTF2_AttributeList> {
 }
 
 declare_enum_union_wrapper!(
-    #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+    #[derive(Debug, Clone, Copy, PartialEq)]
+    #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
     pub enum AttributeValue(union: OTF2_AttributeValue) {
         OTF2_TYPE_NONE => None(()),
         OTF2_TYPE_UINT8 => Uint8(u8) from uint8,

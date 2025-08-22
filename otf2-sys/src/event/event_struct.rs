@@ -5,7 +5,8 @@ use crate::internal::*;
 use crate::attribute::AttributeValue;
 use std::ffi::CStr;
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Event {
     pub kind: EventKind,
     pub data: EventData,
@@ -22,14 +23,6 @@ impl Event {
             },
         }
     }
-
-    pub fn as_json(&self) -> String {
-        serde_json::to_string(self).unwrap_or_else(|_| "Error serializing event".to_string())
-    }
-
-    pub fn as_json_pretty(&self) -> String {
-        serde_json::to_string_pretty(self).unwrap_or_else(|_| "Error serializing event".to_string())
-    }
 }
 
 impl std::fmt::Display for Event {
@@ -38,7 +31,8 @@ impl std::fmt::Display for Event {
     }
 }
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct EventData {
     pub location: OTF2_LocationRef,
     pub time: OTF2_TimeStamp,
@@ -78,7 +72,7 @@ macro_rules! declare_named_enum {
 
 declare_named_enum!(
     #[derive(Debug)]
-    #[derive(serde::Serialize, serde::Deserialize)]
+    #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
     pub enum EventKind {
         Unknown{},
         BufferFlush {stop_time: OTF2_TimeStamp},

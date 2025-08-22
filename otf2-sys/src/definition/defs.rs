@@ -1,291 +1,72 @@
 use crate::internal::*;
 use crate::attribute::AttributeValue;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct LocationDef {
-    pub name: OTF2_StringRef,
-    pub location_type: OTF2_LocationType,
-    pub num_events: u64,
-    pub location_group: OTF2_LocationGroupRef,
+macro_rules! for_each_definition {
+    ($macro:ident) => {
+        $macro!(
+            name: String, reftype: OTF2_StringRef, type: String;
+            name: Attribute, reftype: OTF2_AttributeRef, struct: AttributeDef { name: OTF2_StringRef, description: OTF2_StringRef, kind: OTF2_Type};
+            name: ClockProperties, struct: ClockPropertiesDef { timer_resolution: u64, global_offset: u64, trace_length: u64, realtime_timestamp: u64};
+            name: Paradigm, reftype: OTF2_Paradigm, struct: ParadigmDef { paradigm: OTF2_Paradigm, name: OTF2_StringRef, paradigm_class: OTF2_ParadigmClass};
+            name: ParadigmProperty, reftype: OTF2_Paradigm, struct: ParadigmPropertyDef { paradigm: OTF2_Paradigm, property: OTF2_ParadigmProperty, value: AttributeValue};
+            name: IoParadigm, reftype: OTF2_IoParadigmRef, struct: IoParadigmDef { identification: OTF2_StringRef, name: OTF2_StringRef, io_paradigm_class: OTF2_IoParadigmClass, io_paradigm_flags: OTF2_IoParadigmFlag, properties: Vec<OTF2_IoParadigmProperty>, values: Vec<AttributeValue>};
+            name: SystemTreeNode, reftype: OTF2_SystemTreeNodeRef, struct: SystemTreeNodeDef { name: OTF2_StringRef, class_name: OTF2_StringRef, parent: Option<OTF2_SystemTreeNodeRef>};
+            name: SystemTreeNodeProperty, reftype: OTF2_SystemTreeNodeRef, struct: SystemTreeNodePropertyDef { system_tree_node: OTF2_SystemTreeNodeRef, name: OTF2_StringRef, value: AttributeValue};
+            name: SystemTreeNodeDomain, reftype: OTF2_SystemTreeNodeRef, struct: SystemTreeNodeDomainDef { system_tree_node: OTF2_SystemTreeNodeRef, system_tree_domain: OTF2_SystemTreeDomain};
+            name: Location, reftype: OTF2_LocationRef, struct: LocationDef { name: OTF2_StringRef, location_type: OTF2_LocationType, num_events: u64, location_group: OTF2_LocationGroupRef};
+            name: LocationGroup, reftype: OTF2_LocationGroupRef, struct: LocationGroupDef { name: OTF2_StringRef, location_group_type: OTF2_LocationGroupType, system_tree_parent: OTF2_SystemTreeNodeRef, creating_location_group: Option<OTF2_LocationGroupRef>};
+            name: LocationGroupProperty, reftype: OTF2_LocationGroupRef, struct: LocationGroupPropertyDef { location_group: OTF2_LocationGroupRef, name: OTF2_StringRef, value: AttributeValue};
+            name: LocationProperty, reftype: OTF2_LocationRef, struct: LocationPropertyDef { location: OTF2_LocationRef, name: OTF2_StringRef, value: AttributeValue};
+            name: Region, reftype: OTF2_RegionRef, struct: RegionDef { name: OTF2_StringRef, canonical_name: OTF2_StringRef, description: OTF2_StringRef, region_role: OTF2_RegionRole, paradigm: OTF2_Paradigm, region_flags: OTF2_RegionFlag, source_file: OTF2_StringRef, begin_line_number: u32, end_line_number: u32};
+            name: Callsite, reftype: OTF2_CallsiteRef, struct: CallsiteDef { source_file: OTF2_StringRef, line_number: u32, entered_region: OTF2_RegionRef, left_region: OTF2_RegionRef};
+            name: Callpath, reftype: OTF2_CallpathRef, struct: CallpathDef { parent: Option<OTF2_CallpathRef>, region: OTF2_RegionRef};
+            name: CallpathParameter, reftype: OTF2_CallpathRef, struct: CallpathParameterDef { callpath: OTF2_CallpathRef, parameter: OTF2_ParameterRef, value: AttributeValue};
+            name: SourceCodeLocation, reftype: OTF2_SourceCodeLocationRef, struct: SourceCodeLocationDef { file: OTF2_StringRef, line_number: u32};
+            name: CallingContext, reftype: OTF2_CallingContextRef, struct: CallingContextDef { region: OTF2_RegionRef, source_code_location: OTF2_SourceCodeLocationRef, parent: Option<OTF2_CallingContextRef>};
+            name: CallingContextProperty, reftype: OTF2_CallingContextRef, struct: CallingContextPropertyDef { calling_context: OTF2_CallingContextRef, name: OTF2_StringRef, value: AttributeValue};
+            name: Group, reftype: OTF2_GroupRef, struct: GroupDef { name: OTF2_StringRef, group_type: OTF2_GroupType, paradigm: OTF2_Paradigm, group_flags: OTF2_GroupFlag, members: Vec<u64>};
+            name: MetricMember, reftype: OTF2_MetricMemberRef, struct: MetricMemberDef { name: OTF2_StringRef, description: OTF2_StringRef, metric_type: OTF2_MetricType, metric_mode: OTF2_MetricMode, value_type: OTF2_Type, base: OTF2_Base, exponent: i64, unit: OTF2_StringRef};
+            name: MetricClass, reftype: OTF2_MetricRef, struct: MetricClassDef { metric_members: Vec<OTF2_MetricMemberRef>, metric_occurrence: OTF2_MetricOccurrence, recorder_kind: OTF2_RecorderKind};
+            name: MetricInstance, reftype: OTF2_MetricRef, struct: MetricInstanceDef { metric_class: OTF2_MetricRef, recorder: OTF2_LocationRef, metric_scope: OTF2_MetricScope, scope: u64};
+            name: MetricClassRecorder, reftype: OTF2_MetricRef, struct: MetricClassRecorderDef { metric_class: OTF2_MetricRef, recorder: OTF2_LocationRef};
+            name: Comm, reftype: OTF2_CommRef, struct: CommDef { name: OTF2_StringRef, group: OTF2_GroupRef, parent: Option<OTF2_CommRef>, flags: OTF2_CommFlag};
+            name: InterComm, reftype: OTF2_CommRef, struct: InterCommDef { name: OTF2_StringRef, group_a: OTF2_GroupRef, group_b: OTF2_GroupRef, common_communicator: Option<OTF2_CommRef>, flags: OTF2_CommFlag};
+            name: Parameter, reftype: OTF2_ParameterRef, struct: ParameterDef { name: OTF2_StringRef, parameter_type: OTF2_ParameterType};
+            name: RmaWin, reftype: OTF2_RmaWinRef, struct: RmaWinDef { name: OTF2_StringRef, comm: OTF2_CommRef, flags: OTF2_RmaWinFlag};
+            name: CartDimension, reftype: OTF2_CartDimensionRef, struct: CartDimensionDef { name: OTF2_StringRef, size: u32, periodic: OTF2_CartPeriodicity};
+            name: CartTopology, reftype: OTF2_CartTopologyRef, struct: CartTopologyDef { name: OTF2_StringRef, communicator: OTF2_CommRef, dimensions: Vec<OTF2_CartDimensionRef>};
+            name: CartCoordinate, reftype: OTF2_CartTopologyRef, struct: CartCoordinateDef { topology: OTF2_CartTopologyRef, rank: u32, coordinates: Vec<u32>};
+            name: InterruptGenerator, reftype: OTF2_InterruptGeneratorRef, struct: InterruptGeneratorDef { name: OTF2_StringRef, interrupt_generator_mode: OTF2_InterruptGeneratorMode, base: OTF2_Base, exponent: i64, period: u64};
+            name: IoFileProperty, reftype: OTF2_IoFileRef, struct: IoFilePropertyDef { io_file: OTF2_IoFileRef, name: OTF2_StringRef, value: AttributeValue};
+            name: IoRegularFile, reftype: OTF2_IoFileRef, struct: IoRegularFileDef { name: OTF2_StringRef, scope: OTF2_SystemTreeNodeRef};
+            name: IoDirectory, reftype: OTF2_IoFileRef, struct: IoDirectoryDef { name: OTF2_StringRef, scope: OTF2_SystemTreeNodeRef};
+            name: IoHandle, reftype: OTF2_IoHandleRef, struct: IoHandleDef { name: OTF2_StringRef, file: OTF2_IoFileRef, io_paradigm: OTF2_IoParadigmRef, io_handle_flags: OTF2_IoHandleFlag, comm: Option<OTF2_CommRef>, parent: Option<OTF2_IoHandleRef>};
+            name: IoPreCreatedHandleState, reftype: OTF2_IoHandleRef, struct: IoPreCreatedHandleStateDef { io_handle: OTF2_IoHandleRef, mode: OTF2_IoAccessMode, status_flags: OTF2_IoStatusFlag};
+        );
+    }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct AttributeDef {
-    pub name: OTF2_StringRef,
-    pub description: OTF2_StringRef,
-    pub kind: OTF2_Type,
+macro_rules! define_value_struct {
+    () => {};
+    ( name: $name:ident, $(reftype: $reftype:ty ,)? struct: $struct:ident { $( $field:ident: $ty:ty ),* }; $($rest:tt)* ) => {
+        #[derive(Debug, Clone, PartialEq)]
+        #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+        pub struct $struct {
+            $(pub $field: $ty),*
+        }
+        define_value_struct!( $($rest)* );
+    };
+    ( name: $name:ident, $(reftype: $reftype:ty ,)? type: $type:ty; $($rest:tt)* ) => {
+        define_value_struct!( $($rest)* );
+    };
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct ClockPropertiesDef {
-    pub timer_resolution: u64,
-    pub global_offset: u64,
-    pub trace_length: u64,
-    pub realtime_timestamp: u64,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct ParadigmDef {
-    pub paradigm: OTF2_Paradigm,
-    pub name: OTF2_StringRef,
-    pub paradigm_class: OTF2_ParadigmClass,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct ParadigmPropertyDef {
-    pub paradigm: OTF2_Paradigm,
-    pub property: OTF2_ParadigmProperty,
-    pub value: AttributeValue,
-}
-
-
-#[derive(Debug, Clone)]
-pub struct IoParadigmDef {
-    pub identification: OTF2_StringRef,
-    pub name: OTF2_StringRef,
-    pub io_paradigm_class: OTF2_IoParadigmClass,
-    pub io_paradigm_flags: OTF2_IoParadigmFlag,
-    pub properties: Vec<OTF2_IoParadigmProperty>,
-    pub values: Vec<AttributeValue>,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct SystemTreeNodeDef {
-    pub name: OTF2_StringRef,
-    pub class_name: OTF2_StringRef,
-    pub parent: Option<OTF2_SystemTreeNodeRef>,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct SystemTreeNodePropertyDef {
-    pub system_tree_node: OTF2_SystemTreeNodeRef,
-    pub name: OTF2_StringRef,
-    pub value: AttributeValue,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct SystemTreeNodeDomainDef {
-    pub system_tree_node: OTF2_SystemTreeNodeRef,
-    pub system_tree_domain: OTF2_SystemTreeDomain,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct LocationGroupDef {
-    pub name: OTF2_StringRef,
-    pub location_group_type: OTF2_LocationGroupType,
-    pub system_tree_parent: OTF2_SystemTreeNodeRef,
-    pub creating_location_group: Option<OTF2_LocationGroupRef>,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct LocationGroupPropertyDef {
-    pub location_group: OTF2_LocationGroupRef,
-    pub name: OTF2_StringRef,
-    pub value: AttributeValue,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct LocationPropertyDef {
-    pub location: OTF2_LocationRef,
-    pub name: OTF2_StringRef,
-    pub value: AttributeValue,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct RegionDef {
-    pub name: OTF2_StringRef,
-    pub canonical_name: OTF2_StringRef,
-    pub description: OTF2_StringRef,
-    pub region_role: OTF2_RegionRole,
-    pub paradigm: OTF2_Paradigm,
-    pub region_flags: OTF2_RegionFlag,
-    pub source_file: OTF2_StringRef,
-    pub begin_line_number: u32,
-    pub end_line_number: u32,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct CallsiteDef {
-    pub source_file: OTF2_StringRef,
-    pub line_number: u32,
-    pub entered_region: OTF2_RegionRef,
-    pub left_region: OTF2_RegionRef,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct CallpathDef {
-    pub parent: Option<OTF2_CallpathRef>,
-    pub region: OTF2_RegionRef,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct CallpathParameterDef {
-    pub callpath: OTF2_CallpathRef,
-    pub parameter: OTF2_ParameterRef,
-    pub value: AttributeValue,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct SourceCodeLocationDef {
-    pub file: OTF2_StringRef,
-    pub line_number: u32,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct CallingContextDef {
-    pub region: OTF2_RegionRef,
-    pub source_code_location: OTF2_SourceCodeLocationRef,
-    pub parent: Option<OTF2_CallingContextRef>,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct CallingContextPropertyDef {
-    pub calling_context: OTF2_CallingContextRef,
-    pub name: OTF2_StringRef,
-    pub value: AttributeValue,
-}
-
-#[derive(Debug, Clone)]
-pub struct GroupDef {
-    pub name: OTF2_StringRef,
-    pub group_type: OTF2_GroupType,
-    pub paradigm: OTF2_Paradigm,
-    pub group_flags: OTF2_GroupFlag,
-    pub members: Vec<u64>,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct MetricMemberDef {
-    pub name: OTF2_StringRef,
-    pub description: OTF2_StringRef,
-    pub metric_type: OTF2_MetricType,
-    pub metric_mode: OTF2_MetricMode,
-    pub value_type: OTF2_Type,
-    pub base: OTF2_Base,
-    pub exponent: i64,
-    pub unit: OTF2_StringRef,
-}
-
-#[derive(Debug, Clone)]
-pub struct MetricClassDef {
-    pub metric_members: Vec<OTF2_MetricMemberRef>,
-    pub metric_occurrence: OTF2_MetricOccurrence,
-    pub recorder_kind: OTF2_RecorderKind,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct MetricInstanceDef {
-    pub metric_class: OTF2_MetricRef,
-    pub recorder: OTF2_LocationRef,
-    pub metric_scope: OTF2_MetricScope,
-    pub scope: u64,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct MetricClassRecorderDef {
-    pub metric_class: OTF2_MetricRef,
-    pub recorder: OTF2_LocationRef,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct CommDef {
-    pub name: OTF2_StringRef,
-    pub group: OTF2_GroupRef,
-    pub parent: Option<OTF2_CommRef>,
-    pub flags: OTF2_CommFlag,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct InterCommDef {
-    pub name: OTF2_StringRef,
-    pub group_a: OTF2_GroupRef,
-    pub group_b: OTF2_GroupRef,
-    pub common_communicator: Option<OTF2_CommRef>,
-    pub flags: OTF2_CommFlag,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct ParameterDef {
-    pub name: OTF2_StringRef,
-    pub parameter_type: OTF2_ParameterType,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct RmaWinDef {
-    pub name: OTF2_StringRef,
-    pub comm: OTF2_CommRef,
-    pub flags: OTF2_RmaWinFlag,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct CartDimensionDef {
-    pub name: OTF2_StringRef,
-    pub size: u32,
-    pub periodic: OTF2_CartPeriodicity,
-}
-
-#[derive(Debug, Clone)]
-pub struct CartTopologyDef {
-    pub name: OTF2_StringRef,
-    pub communicator: OTF2_CommRef,
-    pub dimensions: Vec<OTF2_CartDimensionRef>,
-}
-
-#[derive(Debug, Clone)]
-pub struct CartCoordinateDef {
-    pub topology: OTF2_CartTopologyRef,
-    pub rank: u32,
-    pub coordinates: Vec<u32>,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct InterruptGeneratorDef {
-    pub name: OTF2_StringRef,
-    pub interrupt_generator_mode: OTF2_InterruptGeneratorMode,
-    pub base: OTF2_Base,
-    pub exponent: i64,
-    pub period: u64,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct IoFilePropertyDef {
-    pub io_file: OTF2_IoFileRef,
-    pub name: OTF2_StringRef,
-    pub value: AttributeValue,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct IoRegularFileDef {
-    pub name: OTF2_StringRef,
-    pub scope: OTF2_SystemTreeNodeRef,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct IoDirectoryDef {
-    pub name: OTF2_StringRef,
-    pub scope: OTF2_SystemTreeNodeRef,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct IoHandleDef {
-    pub name: OTF2_StringRef,
-    pub file: OTF2_IoFileRef,
-    pub io_paradigm: OTF2_IoParadigmRef,
-    pub io_handle_flags: OTF2_IoHandleFlag,
-    pub comm: Option<OTF2_CommRef>,
-    pub parent: Option<OTF2_IoHandleRef>,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct IoPreCreatedHandleStateDef {
-    pub io_handle: OTF2_IoHandleRef,
-    pub mode: OTF2_IoAccessMode,
-    pub status_flags: OTF2_IoStatusFlag,
-}
+for_each_definition!(define_value_struct);
 
 /// Stores definitions from a trace file. Each variant stores the data provided by the corresponding
 /// callback function which reports the particular definition.
 #[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Definition {
     String {
         defn: OTF2_StringRef,
@@ -303,7 +84,7 @@ pub enum Definition {
         value: ParadigmDef,
     },
     ParadigmProperty {
-        paradigm: OTF2_Paradigm,
+        defn: OTF2_Paradigm,
         value: ParadigmPropertyDef,
     },
     IoParadigm {
@@ -315,11 +96,11 @@ pub enum Definition {
         value: SystemTreeNodeDef,
     },
     SystemTreeNodeProperty {
-        system_tree_node: OTF2_SystemTreeNodeRef,
+        defn: OTF2_SystemTreeNodeRef,
         value: SystemTreeNodePropertyDef,
     },
     SystemTreeNodeDomain {
-        system_tree_node: OTF2_SystemTreeNodeRef,
+        defn: OTF2_SystemTreeNodeRef,
         value: SystemTreeNodeDomainDef,
     },
     LocationGroup {
@@ -331,11 +112,11 @@ pub enum Definition {
         value: LocationDef,
     },
     LocationGroupProperty {
-        location_group: OTF2_LocationGroupRef,
+        defn: OTF2_LocationGroupRef,
         value: LocationGroupPropertyDef,
     },
     LocationProperty {
-        location: OTF2_LocationRef,
+        defn: OTF2_LocationRef,
         value: LocationPropertyDef,
     },
     Region {
@@ -351,7 +132,7 @@ pub enum Definition {
         value: CallpathDef,
     },
     CallpathParameter {
-        callpath: OTF2_CallpathRef,
+        defn: OTF2_CallpathRef,
         value: CallpathParameterDef,
     },
     SourceCodeLocation {
@@ -363,7 +144,7 @@ pub enum Definition {
         value: CallingContextDef,
     },
     CallingContextProperty {
-        calling_context: OTF2_CallingContextRef,
+        defn: OTF2_CallingContextRef,
         value: CallingContextPropertyDef,
     },
     Group {
@@ -383,7 +164,7 @@ pub enum Definition {
         value: MetricInstanceDef,
     },
     MetricClassRecorder {
-        metric_class: OTF2_MetricRef,
+        defn: OTF2_MetricRef,
         value: MetricClassRecorderDef,
     },
     Comm {
@@ -411,7 +192,7 @@ pub enum Definition {
         value: CartTopologyDef,
     },
     CartCoordinate {
-        topology: OTF2_CartTopologyRef,
+        defn: OTF2_CartTopologyRef,
         value: CartCoordinateDef,
     },
     InterruptGenerator {
@@ -419,7 +200,7 @@ pub enum Definition {
         value: InterruptGeneratorDef,
     },
     IoFileProperty {
-        io_file: OTF2_IoFileRef,
+        defn: OTF2_IoFileRef,
         value: IoFilePropertyDef,
     },
     IoRegularFile {
@@ -435,7 +216,7 @@ pub enum Definition {
         value: IoHandleDef,
     },
     IoPreCreatedHandleState {
-        io_handle: OTF2_IoHandleRef,
+        defn: OTF2_IoHandleRef,
         value: IoPreCreatedHandleStateDef,
     },
 }

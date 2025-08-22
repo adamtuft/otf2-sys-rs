@@ -10,6 +10,7 @@ mod event;
 mod handle;
 mod reader;
 mod macros;
+mod traits;
 
 mod internal {
     pub use super::c::*;

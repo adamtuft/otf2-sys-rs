@@ -3,13 +3,26 @@ use std::path::Path;
 
 use bindgen::{EnumVariation, builder, callbacks::ParseCallbacks};
 
+macro_rules! feature_flag {
+    ($feature:ident : $literal:expr) => {
+        pub const $feature: bool = cfg!(feature = $literal);
+    };
+}
+
+mod features {
+    #![allow(non_upper_case_globals)]
+    feature_flag!(serde: "serde");
+}
+
 #[derive(Debug)]
 struct Parser;
 
 impl ParseCallbacks for Parser {
     fn add_derives(&self, info: &bindgen::callbacks::DeriveInfo<'_>) -> Vec<String> {
         let mut derives: Vec<&'static str> = Vec::new();
-        self.check_derive_serde(info, &mut derives);
+        if features::serde {
+            self.check_derive_serde(info, &mut derives);
+        }
         dbg!(info);
         derives.into_iter().map(|s| s.to_string()).collect()
     }

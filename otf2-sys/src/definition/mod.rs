@@ -6,7 +6,7 @@ mod string;
 mod visitor;
 mod defs;
 
-pub use global_reader_callbacks::{GlobalDefReaderCallbacks, DefinitionList};
+pub use global_reader_callbacks::GlobalDefReaderCallbacks;
 pub use visitor::DefinitionVisitor;
 pub use print_defs::PrintingDefinitionVisitor;
 pub use self::defs::*;

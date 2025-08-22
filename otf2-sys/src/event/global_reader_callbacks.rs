@@ -7,6 +7,8 @@ use std::ffi::CStr;
 
 use super::event_struct::{Event, EventKind};
 
+use crate::macros::{zipmap, slice_from_raw};
+
 use std::collections::VecDeque;
 
 /// Safe wrapper around OTF2_GlobalEvtReaderCallbacks
@@ -242,8 +244,8 @@ mod event_queue_callbacks {
     }
 
     pub unsafe extern "C" fn metric(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, metric: OTF2_MetricRef, number_of_metrics: u8, type_ids: *const OTF2_Type, metric_values: *const OTF2_MetricValue ) -> OTF2_CallbackCode {
-        let types = unsafe { std::slice::from_raw_parts(type_ids, number_of_metrics as usize) }.to_vec();
-        let raw_values = unsafe { std::slice::from_raw_parts(metric_values, number_of_metrics as usize) }.to_vec();
+        let types = unsafe { slice_from_raw!(type_ids, number_of_metrics) }.to_vec();
+        let raw_values = unsafe { slice_from_raw!(metric_values, number_of_metrics) }.to_vec();
         let values = types.into_iter().zip(raw_values).map(|(t, v)| MetricValue::new(t, v)).collect();
         push_event!(queue, location, time, attributes, EventKind::Metric { metric, values })
     }
@@ -453,7 +455,7 @@ mod event_queue_callbacks {
     }
 
     pub unsafe extern "C" fn program_begin(location: OTF2_LocationRef, time: OTF2_TimeStamp, queue: *mut c_void, attributes: *mut OTF2_AttributeList, program_name: OTF2_StringRef, number_of_arguments: u32, program_arguments: *const OTF2_StringRef ) -> OTF2_CallbackCode {
-        let program_arguments = unsafe { std::slice::from_raw_parts(program_arguments, number_of_arguments as usize) }.to_vec();
+        let program_arguments = unsafe { slice_from_raw!(program_arguments, number_of_arguments) }.to_vec();
         push_event!(queue, location, time, attributes, EventKind::ProgramBegin { program_name, program_arguments })
     }
 

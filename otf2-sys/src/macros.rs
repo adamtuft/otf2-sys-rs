@@ -1,3 +1,18 @@
+macro_rules! zipmap {
+    ($first:expr, $second:expr, $closure:expr) => {
+        $first
+            .zip($second)
+            .map($closure)
+            .collect()
+    };
+}
+
+macro_rules! slice_from_raw {
+    ($ptr:expr, $size:expr) => {
+        std::slice::from_raw_parts($ptr, $size as usize)
+    }
+}
+
 macro_rules! parse_ident_or_underscore {
     ( _ ) => {
         _
@@ -71,6 +86,6 @@ macro_rules! declare_enum_union_wrapper {
     };
 }
 
-pub(crate) use parse_ident_or_underscore;
-pub(crate) use map_optional_union_access;
-pub(crate) use declare_enum_union_wrapper;
+pub(crate) use {
+    zipmap, slice_from_raw, parse_ident_or_underscore, map_optional_union_access, declare_enum_union_wrapper
+};

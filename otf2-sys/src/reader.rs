@@ -6,7 +6,7 @@
 use crate::internal::*;
 use crate::error::{Status, StatusCode};
 use crate::event::{Event, EventKind, GlobalEvtReaderCallbacks};
-use crate::definition::{GlobalDefReaderCallbacks, Definition, DefinitionVisitor, LocationRegistry, DefinitionList};
+use crate::definition::{GlobalDefReaderCallbacks, Definition, DefinitionVisitor, LocationRegistry};
 use std::ffi::{CString, CStr};
 use std::ops::ControlFlow;
 use std::collections::VecDeque;
@@ -115,9 +115,9 @@ impl<'r> GlobalDefReader<'r> {
         Ok(GlobalDefReader { handle, reader })
     }
 
-    fn read_global_definitions(mut self, callbacks: &mut GlobalDefReaderCallbacks) -> Status<(u64, DefinitionList)> {
+    fn read_global_definitions(mut self, callbacks: &mut GlobalDefReaderCallbacks) -> Status<(u64, Vec<Definition>)> {
         let mut definitions_read: u64 = 0;
-        let mut definitions = DefinitionList::new();
+        let mut definitions = Vec::new();
         unsafe {
             OTF2_Reader_RegisterGlobalDefCallbacks(
                 self.reader.handle.as_mut_ptr(),
@@ -149,7 +149,7 @@ impl core::ops::Drop for Trace {
 }
 
 impl Trace {
-    pub fn read_definitions(&mut self) -> Status<(u64, DefinitionList)> {
+    pub fn read_definitions(&mut self) -> Status<(u64, Vec<Definition>)> {
         let mut callbacks = GlobalDefReaderCallbacks::new()?;
         GlobalDefReader::new(self)?.read_global_definitions(&mut callbacks)
     }
@@ -261,20 +261,35 @@ mod test {
     use super::*;
 
     use crate::definition::Definition;
+    use crate::traits::AsJson;
 
     fn count_events(event_iter: EventIter) -> usize {
         event_iter.count()
     }
 
     #[test]
+    #[cfg(feature = "serde")]
     fn test_reader() {
         let anchor_file = CString::new("/home/adam/Dropbox/Durham-RA/experiments/bots-strassen/trace/serial_512.15132/serial_512.15132.otf2").expect("Failed to create CString");
         let mut trace = open(anchor_file).unwrap();
         for event in trace.iter_events(1000).expect("Failed to get event iter") {
             match event {
-                Ok(event) => { println!("Event: {}", event.as_json()); },
+                Ok(event) => { println!("Event: {}", event.as_json().expect("Failed to serialize event")); },
                 Err(err) => { eprintln!("Error reading event: {err}"); break; },
             }
         }
     }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_definitions() {
+        let anchor_file = CString::new("/home/adam/Dropbox/Durham-RA/experiments/bots-strassen/trace/serial_512.15132/serial_512.15132.otf2").expect("Failed to create CString");
+        let mut trace = open(anchor_file).unwrap();
+        let (_, definitions) = trace.read_definitions().expect("Failed to read definitions");
+        // for def in definitions {
+        //     println!("Definition: {}", def.as_json_pretty().expect("Failed to serialize definition"));
+        // }
+        println!("{}", serde_json::to_string_pretty(&definitions).expect("Failed to serialize definitions"));        
+    }
+
 }
