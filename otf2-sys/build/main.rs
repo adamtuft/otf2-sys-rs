@@ -1,51 +1,70 @@
 use std::path::PathBuf;
-use anyhow::{Error, Context};
+use anyhow::Error;
 
 mod bindgen;
 mod build_otf2;
 
+use directories::ProjectDirs;
+use fetch_source::{Cache, load_sources};
 use build_otf2::build_from_source;
 
-fn detect_source_cache_dir() -> Result<Option<PathBuf>, Error> {
-    let cache_dir = match std::env::var_os("CARGO_FETCH_SOURCE_CACHE") {
-        Some(dir) => PathBuf::from(dir),
-        None => {
-            let project_dirs = directories::ProjectDirs::from("", "", "cargo-fetch-source").context("could not determine cache directory")?;
-            project_dirs.cache_dir().to_path_buf()
+macro_rules! load_from_cache {
+    ($dir:ident, $src:ident) => {{
+        let cache = Cache::read(&$dir).expect(&format!("failed to read fetch-source cache {:?}", $dir));
+        assert!(cache.items().contains(&$src), concat!("expected ", stringify!($src), " to be cached"));
+        cache.cached_path(&$src)
+    }};
+}
+
+macro_rules! expect_cached_install {
+    ($dir:ident, $src:ident) => {{
+        let install_dir = load_from_cache!($dir, $src).join("install");
+        assert!(install_dir.is_dir(), "install directory not found: {install_dir:?}");
+        install_dir
+    }};
+}
+
+macro_rules! fetch_build_install {
+    ($src:ident, $src_dir:expr, $fetch_dir:expr, $install_dir:expr) => {{
+        let artefact = $src.fetch($fetch_dir).expect("failed to fetch source");
+        build_from_source(
+            artefact.path().join($src_dir),
+            $install_dir
+        )
+    }};
+}
+
+/// Check for a given source cache directory. Check `CARGO_FETCH_SOURCE_CACHE` then fall back to the
+/// default user cache directory.
+macro_rules! get_source_cache_dir {
+    ($env_var:expr, $cache_dir:expr) => {{
+        match std::env::var_os($env_var) {
+            Some(dir) => PathBuf::from(dir),
+            None => {
+                let project_dirs = ProjectDirs::from("", "", $cache_dir).expect("home directory couldn't be detected");
+                project_dirs.cache_dir().to_path_buf()
+            }
         }
-    };
-    Ok(Some(cache_dir).filter(|d| fetch_source::Cache::cache_file_exists(d)))
+    }}
 }
 
 fn main() -> Result<(), Error> {
     let out_path = PathBuf::from(std::env::var("OUT_DIR").unwrap());
-    dbg!(&out_path);
     let manifest_dir = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
-    dbg!(&manifest_dir);
-    let mut sources = fetch_source::load_sources(&manifest_dir)?;
-    let otf2 = sources
-        .remove("otf2::3.0")
-        .expect("Should have otf2::3.0 in sources table");
-    println!("fetch OTF2 into {out_path:?}");
-    dbg!(&otf2);
-    let otf2_install_dir = match detect_source_cache_dir()? {
-        Some(dir) => {
-            let cache = fetch_source::Cache::read(&dir).context(format!("failed to read fetch-source cache {dir:?}"))?;
-            assert!(cache.items().contains(&otf2), "expected otf2 to be cached");
-            let artefact_dir = cache.cache_dir().append(cache.items().relative_path(&otf2));
-            let install_dir = artefact_dir.join("install");
-            assert!(install_dir.is_dir(), "expected a cached install directory");
-            install_dir
-        },
-        None => {
-            let build_dir = out_path.join("otf2-build");
-            let install_dir = out_path.join("otf2-install");
-            let artefact = otf2.fetch(&build_dir).context("failed to fetch OTF2 source")?;
-            dbg!(&artefact);
-            let src_dir: PathBuf = artefact.path().join("otf2-3.0");
-            build_from_source(&src_dir, &install_dir)?
-        },
+    let otf2 = load_sources(&manifest_dir).expect("failed to load sources from manifest file")
+        .remove("otf2::3.0").expect("Should have otf2::3.0 in sources table");
+    let otf2_install_dir = {
+        let cache_dir = get_source_cache_dir!("CARGO_FETCH_SOURCE_CACHE", "cargo-fetch-source");
+        if Cache::cache_file_exists(&cache_dir) {
+            expect_cached_install!(cache_dir, otf2)
+        } else {
+            fetch_build_install!(
+                otf2,
+                "otf2-3.0",
+                out_path.join("otf2-build"),
+                out_path.join("otf2-install")
+            )?
+        }
     };
-    dbg!(&otf2_install_dir);
     bindgen::generate(&otf2_install_dir, &out_path)
 }
