@@ -1,6 +1,6 @@
 //! Generate bindings to OTF2
 use std::path::Path;
-
+use anyhow::{Error, Context};
 use bindgen::{EnumVariation, builder, callbacks::ParseCallbacks};
 
 macro_rules! feature_flag {
@@ -48,7 +48,7 @@ impl Parser {
 pub fn generate(
     install_dir: &Path,
     out_path: &std::path::Path,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Error> {
     let install_dir = install_dir.display();
     println!("cargo::rustc-link-search={install_dir}/lib");
     println!("cargo::rustc-link-lib=otf2");
@@ -74,7 +74,6 @@ pub fn generate(
 
     bindings
         .write_to_file(out_path.join("bindings.rs"))
-        .expect("Couldn't write bindings!");
+        .context("couldn't write bindings to file")
 
-    Ok(())
 }

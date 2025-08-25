@@ -27,6 +27,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "anyhow"
+version = "1.0.99"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b0674a1ddeecb70197781e945de4b3b8ffb61fa939a5597bcf48503737663100"
+
+[[package]]
 name = "async-trait"
 version = "0.1.88"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -392,7 +398,7 @@ checksum = "37909eebbb50d72f9059c3b6d82c0463f2ff062c9e95845c43a6c9c0355411be"
 [[package]]
 name = "fetch-source"
 version = "0.1.0"
-source = "git+ssh://git@github.com/adamtuft/cargo-fetch-source.git?branch=dev-pre-release-tasks#55bc0993a6ff5d74eaa89fc03f0c42e0d43ab7b8"
+source = "git+ssh://git@github.com/adamtuft/cargo-fetch-source.git?branch=dev-pre-release-tasks#a0c37b208cf06dade917b2becd48af4cb4e234bf"
 dependencies = [
  "derive_more",
  "directories",
@@ -1064,6 +1070,7 @@ dependencies = [
 name = "otf2-sys"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "autotools",
  "bindgen",
  "derive_builder",

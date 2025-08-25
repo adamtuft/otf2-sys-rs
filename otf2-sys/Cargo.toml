@@ -8,11 +8,8 @@ build = "build/main.rs"
 directories = "6.0.0"
 autotools = "0.2.7"
 bindgen = "0.72.0"
-
-[build-dependencies.fetch-source]
-git = "ssh://git@github.com/adamtuft/cargo-fetch-source.git"
-branch = "dev-pre-release-tasks"
-features = ["rayon", "tar"]
+anyhow = "1.0.99"
+fetch-source = { git = "ssh://git@github.com/adamtuft/cargo-fetch-source.git", branch = "dev-pre-release-tasks", features = ["rayon", "tar"]}
 
 [dependencies]
 derive_builder = "0.20.2"
